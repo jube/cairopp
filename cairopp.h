@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright © 2024 Julien Bernard <julien.bernard@univ-fcomte.fr>
 #ifndef CAIROPP_H
 #define CAIROPP_H
 
