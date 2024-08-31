@@ -1,6 +1,6 @@
 # cairopp, C++17 binding cairo
 
-**cairopp** is a C++17 binding for [cairo](https://cairographics.org/).
+**cairopp** is a C++17 binding for [cairo](https://cairographics.org/) (>= 1.16).
 
 ## Features
 
@@ -52,6 +52,10 @@ Known missing member functions:
 - `surface::get_mime_data`
 - `surface::supports_mime_type`
 - `image_surface::create_from_png_stream`
+
+### Versioning
+
+For now, the binding does not handle different versions of cairo. It may change in the future.
 
 ## License
 
