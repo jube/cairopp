@@ -14,6 +14,9 @@
 #include <vector>
 
 #include <cairo.h>
+#if CAIRO_HAS_PDF_SURFACE
+#include <cairo-pdf.h>
+#endif
 
 namespace cairo {
 
@@ -1280,6 +1283,75 @@ namespace cairo {
     }
   };
 
+#if CAIRO_HAS_PDF_SURFACE
+
+  enum class pdf_version : std::underlying_type_t<cairo_pdf_version_t> {
+    v_1_4,
+    v_1_5,
+  };
+
+  inline std::string_view to_string(pdf_version version) { return cairo_pdf_version_to_string(static_cast<cairo_pdf_version_t>(version)); }
+
+  enum class pdf_outline_flags : std::underlying_type_t<cairo_pdf_outline_flags_t> {
+    open = CAIRO_PDF_OUTLINE_FLAG_OPEN,
+    bold = CAIRO_PDF_OUTLINE_FLAG_BOLD,
+    italic = CAIRO_PDF_OUTLINE_FLAG_ITALIC,
+  };
+
+  inline constexpr int pdf_outline_root = CAIRO_PDF_OUTLINE_ROOT;
+
+  enum class pdf_metadata : std::underlying_type_t<cairo_pdf_metadata_t> {
+    title = CAIRO_PDF_METADATA_TITLE,
+    author = CAIRO_PDF_METADATA_AUTHOR,
+    subject = CAIRO_PDF_METADATA_SUBJECT,
+    keywords = CAIRO_PDF_METADATA_KEYWORDS,
+    creator = CAIRO_PDF_METADATA_CREATOR,
+    date = CAIRO_PDF_METADATA_CREATE_DATE,
+    mod_date = CAIRO_PDF_METADATA_MOD_DATE,
+  };
+
+  class pdf_surface : public surface {
+  public:
+    static pdf_surface create(const char* filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename, width_in_points, height_in_points); }
+    static pdf_surface create(const std::filesystem::path& filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename.string().c_str(), width_in_points, height_in_points); }
+
+    void restrict_to_version(pdf_version version) { cairo_pdf_surface_restrict_to_version(m_surface, static_cast<cairo_pdf_version_t>(version)); }
+
+    void set_size(double width_in_points, double height_in_points) {cairo_pdf_surface_set_size(m_surface, width_in_points, height_in_points); }
+    void set_size(vec2f size_in_points) {cairo_pdf_surface_set_size(m_surface, size_in_points.x, size_in_points.y); }
+
+    void add_outline(int parent_id, const char* utf8, const char* link_attribs, pdf_outline_flags flags) { cairo_pdf_surface_add_outline(m_surface, parent_id, utf8, link_attribs, static_cast<cairo_pdf_outline_flags_t>(flags)); }
+
+    void set_metadata(pdf_metadata metadata, const char* utf8) { cairo_pdf_surface_set_metadata(m_surface, static_cast<cairo_pdf_metadata_t>(metadata), utf8); }
+    void set_page_label(const char* utf8) { cairo_pdf_surface_set_page_label(m_surface, utf8); }
+    void set_thumbnail_size(int width, int height) { cairo_pdf_surface_set_thumbnail_size(m_surface, width, height); }
+    void set_thumbnail_size(vec2i size) { cairo_pdf_surface_set_thumbnail_size(m_surface, size.x, size.y); }
+
+    static std::vector<pdf_version> get_versions()
+    {
+      const cairo_pdf_version_t *raw_versions;
+      int raw_num_versions;
+      cairo_pdf_get_versions(&raw_versions, &raw_num_versions);
+
+      std::vector<pdf_version> versions;
+
+      for (int i = 0; i < raw_num_versions; ++i) {
+        versions.push_back(static_cast<pdf_version>(raw_versions[i]));
+      }
+
+      return versions;
+    }
+
+  private:
+    pdf_surface(cairo_surface_t* surf)
+    : surface(surf)
+    {
+    }
+  };
+
+#endif
+
+  inline void debug_reset_static_data() { cairo_debug_reset_static_data(); }
 }
 
 #endif // CAIROPP_H

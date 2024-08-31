@@ -487,7 +487,6 @@ namespace {
 
 int main()
 {
-
   for (Sample sample : SAMPLES) {
     std::cout << "Executing '" << sample.name << "'...\n";
 
@@ -508,5 +507,5 @@ int main()
     surface.write_to_png(filename);
   }
 
-
+  cairo::debug_reset_static_data();
 }
