@@ -1,4 +1,4 @@
-# cairopp, C++17 binding cairo
+# cairopp, C++17 binding for cairo
 
 **cairopp** is a C++17 binding for [cairo](https://cairographics.org/) (>= 1.16).
 
