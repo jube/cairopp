@@ -1,4 +1,4 @@
-set_project("akagoria")
+set_project("cairopp")
 set_version("0.1.0")
 
 add_requires("cairo")
