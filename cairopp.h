@@ -24,33 +24,33 @@ namespace cairo {
 
   namespace details {
 
-    struct increase_reference_type {};
-    constexpr increase_reference_type increase_reference = {};
+    struct IncreaseReferenceType {};
+    constexpr IncreaseReferenceType IncreaseReference = {};
 
     template<typename T, void (*Destroy)(T*)>
-    class basic_handle {
+    class BasicHandle {
     public:
-      basic_handle() = default;
+      BasicHandle() = default;
 
-      basic_handle(T* object)
+      BasicHandle(T* object)
       : m_object(object)
       {
       }
 
-      basic_handle(const basic_handle&) = default;
+      BasicHandle(const BasicHandle&) = default;
 
-      basic_handle(basic_handle&& other) noexcept
+      BasicHandle(BasicHandle&& other) noexcept
       : m_object(std::exchange(other.m_object, nullptr))
       {
       }
 
-      ~basic_handle() {
+      ~BasicHandle() {
         destroy();
       }
 
-      basic_handle& operator=(const basic_handle&) = default;
+      BasicHandle& operator=(const BasicHandle&) = default;
 
-      basic_handle& operator=(basic_handle&& other) noexcept
+      BasicHandle& operator=(BasicHandle&& other) noexcept
       {
         if (&other == this) {
           return *this;
@@ -71,6 +71,11 @@ namespace cairo {
         return m_object;
       }
 
+      void set(T* object)
+      {
+        m_object = object;
+      }
+
       operator T*() noexcept
       {
         return m_object;
@@ -88,86 +93,99 @@ namespace cairo {
         }
       }
 
-    protected:
+    private:
       T* m_object = nullptr;
     };
 
 
 
     template<typename T, T* (*Reference)(T*), void (*Destroy)(T*)>
-    class handle : public basic_handle<T, Destroy> {
+    class Handle : public BasicHandle<T, Destroy> {
     public:
-      using basic_handle<T, Destroy>::basic_handle;
-      using basic_handle<T, Destroy>::destroy;
+      using BasicHandle<T, Destroy>::BasicHandle;
+      using BasicHandle<T, Destroy>::destroy;
+      using BasicHandle<T, Destroy>::get;
+      using BasicHandle<T, Destroy>::set;
 
-      handle(T* object, increase_reference_type)
-      : basic_handle<T, Destroy>(object)
+      Handle(T* object, [[maybe_unused]] IncreaseReferenceType incr)
+      : BasicHandle<T, Destroy>(object)
       {
         reference();
       }
 
-      handle(const handle& other)
-      : basic_handle<T, Destroy>(other.m_object)
+      Handle(const Handle& other)
+      : BasicHandle<T, Destroy>(other.get())
       {
         reference();
       }
 
-      handle& operator=(const handle& other)
+      Handle(Handle&&) noexcept = default;
+
+      ~Handle() = default;
+
+      Handle& operator=(const Handle& other)
       {
         if (&other == this) {
           return *this;
         }
 
         destroy();
-        m_object = other.m_object;
+        set(other.get());
         reference();
         return *this;
       }
+
+      Handle& operator=(Handle&&) noexcept = default;
 
       void reference()
       {
-        if (m_object != nullptr) {
-          Reference(m_object);
+        if (get() != nullptr) {
+          Reference(get());
         }
       }
-
-    private:
-      using basic_handle<T, Destroy>::m_object;
     };
 
     template<typename T, T* (*Copy)(const T*), void (*Destroy)(T*)>
-    class copyable_handle : public basic_handle<T, Destroy> {
+    class CopyableHandle : public BasicHandle<T, Destroy> {
     public:
-      using basic_handle<T, Destroy>::basic_handle;
-      using basic_handle<T, Destroy>::destroy;
+      using BasicHandle<T, Destroy>::BasicHandle;
+      using BasicHandle<T, Destroy>::destroy;
+      using BasicHandle<T, Destroy>::get;
+      using BasicHandle<T, Destroy>::set;
 
-      copyable_handle(const copyable_handle& other)
-      : basic_handle<T, Destroy>(Copy(other.m_object))
+      CopyableHandle(const CopyableHandle& other)
+      : BasicHandle<T, Destroy>(Copy(other.get()))
       {
       }
 
-      copyable_handle& operator=(const copyable_handle& other)
+      CopyableHandle(CopyableHandle&&) noexcept = default;
+
+      ~CopyableHandle() = default;
+
+      CopyableHandle& operator=(const CopyableHandle& other)
       {
         if (&other == this) {
           return *this;
         }
 
         destroy();
-        m_object = Copy(other.m_object);
+        set(Copy(other.get()));
         return *this;
       }
 
-    private:
-      using basic_handle<T, Destroy>::m_object;
+      CopyableHandle& operator=(CopyableHandle&&) noexcept = default;
     };
 
     template<typename T, void (*Destroy)(T*)>
-    class non_copyable_handle : public basic_handle<T, Destroy> {
+    class NonCopyableHandle : public BasicHandle<T, Destroy> {
     public:
-      using basic_handle<T, Destroy>::basic_handle;
+      using BasicHandle<T, Destroy>::BasicHandle;
 
-      non_copyable_handle(const non_copyable_handle&) = delete;
-      non_copyable_handle& operator=(const non_copyable_handle&) = delete;
+      NonCopyableHandle(const NonCopyableHandle&) = delete;
+      NonCopyableHandle(NonCopyableHandle&&) noexcept = default;
+      ~NonCopyableHandle() = default;
+      NonCopyableHandle& operator=(const NonCopyableHandle&) = delete;
+      NonCopyableHandle& operator=(NonCopyableHandle&&) noexcept = default;
     };
 
   }
@@ -175,185 +193,185 @@ namespace cairo {
   // utilities
 
   template<typename T>
-  struct vec2 {
+  struct Vec2 {
     T x;
     T y;
   };
 
-  using vec2f = vec2<double>;
-  using vec2i = vec2<int>;
+  using Vec2F = Vec2<double>;
+  using Vec2I = Vec2<int>;
 
   template<typename T>
-  struct rect {
+  struct Rect {
     T x;
     T y;
     T w;
     T h;
   };
 
-  using rectf = rect<double>;
-  using recti = rect<int>;
+  using RectF = Rect<double>;
+  using RectI = Rect<int>;
 
-  struct color {
-    double r;
-    double g;
-    double b;
+  struct Color {
+    double r = 0.0;
+    double g = 0.0;
+    double b = 0.0;
     double a = 1.0;
   };
 
   // binding
 
-  enum class status : std::underlying_type_t<cairo_status_t> {
-    success = CAIRO_STATUS_SUCCESS,
-    no_memory = CAIRO_STATUS_NO_MEMORY,
-    invalid_restore = CAIRO_STATUS_INVALID_RESTORE,
-    invalid_pop_group = CAIRO_STATUS_INVALID_POP_GROUP,
-    no_current_point = CAIRO_STATUS_NO_CURRENT_POINT,
-    invalid_matrix = CAIRO_STATUS_INVALID_MATRIX,
-    invalid_status = CAIRO_STATUS_INVALID_STATUS,
-    null_pointer = CAIRO_STATUS_NULL_POINTER,
-    invalid_string = CAIRO_STATUS_INVALID_STRING,
-    invalid_path_data = CAIRO_STATUS_INVALID_PATH_DATA,
-    read_error = CAIRO_STATUS_READ_ERROR,
-    write_error = CAIRO_STATUS_WRITE_ERROR,
-    surface_finished = CAIRO_STATUS_SURFACE_FINISHED,
-    surface_type_mismatch = CAIRO_STATUS_SURFACE_TYPE_MISMATCH,
-    pattern_type_mismatch = CAIRO_STATUS_PATTERN_TYPE_MISMATCH,
-    invalid_content = CAIRO_STATUS_INVALID_CONTENT,
-    invalid_format = CAIRO_STATUS_INVALID_FORMAT,
-    invalid_visual = CAIRO_STATUS_INVALID_VISUAL,
-    file_not_found = CAIRO_STATUS_FILE_NOT_FOUND,
-    invalid_dash = CAIRO_STATUS_INVALID_DASH,
-    invalid_dsc_comment = CAIRO_STATUS_INVALID_DSC_COMMENT,
-    invalid_index = CAIRO_STATUS_INVALID_INDEX,
-    clip_not_representable = CAIRO_STATUS_CLIP_NOT_REPRESENTABLE,
-    temp_file_error = CAIRO_STATUS_TEMP_FILE_ERROR,
-    invalid_stride = CAIRO_STATUS_INVALID_STRIDE,
-    font_type_mismatch = CAIRO_STATUS_FONT_TYPE_MISMATCH,
-    user_font_immutable = CAIRO_STATUS_USER_FONT_IMMUTABLE,
-    user_font_error = CAIRO_STATUS_USER_FONT_ERROR,
-    negative_count = CAIRO_STATUS_NEGATIVE_COUNT,
-    invalid_clusters = CAIRO_STATUS_INVALID_CLUSTERS,
-    invalid_slant = CAIRO_STATUS_INVALID_SLANT,
-    invalid_weight = CAIRO_STATUS_INVALID_WEIGHT,
-    invalid_size = CAIRO_STATUS_INVALID_SIZE,
-    user_font_not_implemented = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED,
-    device_type_mismatch = CAIRO_STATUS_DEVICE_TYPE_MISMATCH,
-    device_error = CAIRO_STATUS_DEVICE_ERROR,
-    invalid_mesh_construction = CAIRO_STATUS_INVALID_MESH_CONSTRUCTION,
-    device_finished = CAIRO_STATUS_DEVICE_FINISHED,
-    jbig2_global_missing = CAIRO_STATUS_JBIG2_GLOBAL_MISSING,
-    png_error = CAIRO_STATUS_PNG_ERROR,
-    freetype_error = CAIRO_STATUS_FREETYPE_ERROR,
-    win32_gdi_error = CAIRO_STATUS_WIN32_GDI_ERROR,
-    tag_error = CAIRO_STATUS_TAG_ERROR,
+  enum class Status : std::underlying_type_t<cairo_status_t> { // NOLINT(performance-enum-size)
+    Success = CAIRO_STATUS_SUCCESS,
+    NoMemory = CAIRO_STATUS_NO_MEMORY,
+    InvalidRestore = CAIRO_STATUS_INVALID_RESTORE,
+    InvalidPopGroup = CAIRO_STATUS_INVALID_POP_GROUP,
+    NoCurrentPoint = CAIRO_STATUS_NO_CURRENT_POINT,
+    InvalidMatrix = CAIRO_STATUS_INVALID_MATRIX,
+    InvalidStatus = CAIRO_STATUS_INVALID_STATUS,
+    NullPointer = CAIRO_STATUS_NULL_POINTER,
+    InvalidString = CAIRO_STATUS_INVALID_STRING,
+    InvalidPathData = CAIRO_STATUS_INVALID_PATH_DATA,
+    ReadError = CAIRO_STATUS_READ_ERROR,
+    WriteError = CAIRO_STATUS_WRITE_ERROR,
+    SurfaceFinished = CAIRO_STATUS_SURFACE_FINISHED,
+    SurfaceTypeMismatch = CAIRO_STATUS_SURFACE_TYPE_MISMATCH,
+    PatternTypeMismatch = CAIRO_STATUS_PATTERN_TYPE_MISMATCH,
+    InvalidContent = CAIRO_STATUS_INVALID_CONTENT,
+    InvalidFormat = CAIRO_STATUS_INVALID_FORMAT,
+    InvalidVisual = CAIRO_STATUS_INVALID_VISUAL,
+    FileNotFound = CAIRO_STATUS_FILE_NOT_FOUND,
+    InvalidDash = CAIRO_STATUS_INVALID_DASH,
+    InvalidDscComment = CAIRO_STATUS_INVALID_DSC_COMMENT,
+    InvalidIndex = CAIRO_STATUS_INVALID_INDEX,
+    ClipNotRepresentable = CAIRO_STATUS_CLIP_NOT_REPRESENTABLE,
+    TempFileError = CAIRO_STATUS_TEMP_FILE_ERROR,
+    InvalidStride = CAIRO_STATUS_INVALID_STRIDE,
+    FontTypeMismatch = CAIRO_STATUS_FONT_TYPE_MISMATCH,
+    UserFontImmutable = CAIRO_STATUS_USER_FONT_IMMUTABLE,
+    UserFontError = CAIRO_STATUS_USER_FONT_ERROR,
+    NegativeCount = CAIRO_STATUS_NEGATIVE_COUNT,
+    InvalidClusters = CAIRO_STATUS_INVALID_CLUSTERS,
+    InvalidSlant = CAIRO_STATUS_INVALID_SLANT,
+    InvalidWeight = CAIRO_STATUS_INVALID_WEIGHT,
+    InvalidSize = CAIRO_STATUS_INVALID_SIZE,
+    UserFontNotImplemented = CAIRO_STATUS_USER_FONT_NOT_IMPLEMENTED,
+    DeviceTypeMismatch = CAIRO_STATUS_DEVICE_TYPE_MISMATCH,
+    DeviceError = CAIRO_STATUS_DEVICE_ERROR,
+    InvalidMeshConstruction = CAIRO_STATUS_INVALID_MESH_CONSTRUCTION,
+    DeviceFinished = CAIRO_STATUS_DEVICE_FINISHED,
+    Jbig2GlobalMissing = CAIRO_STATUS_JBIG2_GLOBAL_MISSING,
+    PngError = CAIRO_STATUS_PNG_ERROR,
+    FreetypeError = CAIRO_STATUS_FREETYPE_ERROR,
+    Win32GdiError = CAIRO_STATUS_WIN32_GDI_ERROR,
+    TagError = CAIRO_STATUS_TAG_ERROR,
   };
 
-  inline std::string_view to_string(status s) { return cairo_status_to_string(static_cast<cairo_status_t>(s)); }
+  inline std::string_view to_string(Status s) { return cairo_status_to_string(static_cast<cairo_status_t>(s)); }
 
-  enum class content : std::underlying_type_t<cairo_content_t> {
-    color = CAIRO_CONTENT_COLOR,
-    alpha = CAIRO_CONTENT_ALPHA,
-    color_alpha = CAIRO_CONTENT_COLOR_ALPHA,
+  enum class Content : std::underlying_type_t<cairo_content_t> { // NOLINT(performance-enum-size)
+    Color = CAIRO_CONTENT_COLOR,
+    Alpha = CAIRO_CONTENT_ALPHA,
+    ColorAlpha = CAIRO_CONTENT_COLOR_ALPHA,
   };
 
-  enum class format : std::underlying_type_t<cairo_format_t> {
-    invalid = CAIRO_FORMAT_INVALID,
-    argb32 = CAIRO_FORMAT_ARGB32,
-    rgb24 = CAIRO_FORMAT_RGB24,
-    a8 = CAIRO_FORMAT_A8,
-    a1 = CAIRO_FORMAT_A1,
-    rgb16_565 = CAIRO_FORMAT_RGB16_565,
-    rgb30 = CAIRO_FORMAT_RGB30,
+  enum class Format : std::underlying_type_t<cairo_format_t> { // NOLINT(performance-enum-size)
+    Invalid = CAIRO_FORMAT_INVALID,
+    Argb32 = CAIRO_FORMAT_ARGB32,
+    Rgb24 = CAIRO_FORMAT_RGB24,
+    A8 = CAIRO_FORMAT_A8,
+    A1 = CAIRO_FORMAT_A1,
+    Rgb16_565 = CAIRO_FORMAT_RGB16_565,
+    Rgb30 = CAIRO_FORMAT_RGB30,
   };
 
-  enum class compositing_operator : std::underlying_type_t<cairo_operator_t> {
-    clear = CAIRO_OPERATOR_CLEAR,
+  enum class Operator : std::underlying_type_t<cairo_operator_t> { // NOLINT(performance-enum-size)
+    Clear = CAIRO_OPERATOR_CLEAR,
 
-    source = CAIRO_OPERATOR_SOURCE,
-    over = CAIRO_OPERATOR_OVER,
-    in = CAIRO_OPERATOR_IN,
-    out = CAIRO_OPERATOR_OUT,
-    atop = CAIRO_OPERATOR_ATOP,
+    Source = CAIRO_OPERATOR_SOURCE,
+    Over = CAIRO_OPERATOR_OVER,
+    In = CAIRO_OPERATOR_IN,
+    Out = CAIRO_OPERATOR_OUT,
+    Atop = CAIRO_OPERATOR_ATOP,
 
-    dest = CAIRO_OPERATOR_DEST,
-    dest_over = CAIRO_OPERATOR_DEST_OVER,
-    dest_in = CAIRO_OPERATOR_DEST_IN,
-    dest_out = CAIRO_OPERATOR_DEST_OUT,
-    dest_atop = CAIRO_OPERATOR_DEST_ATOP,
+    Dest = CAIRO_OPERATOR_DEST,
+    DestOver = CAIRO_OPERATOR_DEST_OVER,
+    DestIn = CAIRO_OPERATOR_DEST_IN,
+    DestOut = CAIRO_OPERATOR_DEST_OUT,
+    DestAtop = CAIRO_OPERATOR_DEST_ATOP,
 
-    exclusive_or = CAIRO_OPERATOR_XOR,
-    add = CAIRO_OPERATOR_ADD,
-    saturate = CAIRO_OPERATOR_SATURATE,
+    Xor = CAIRO_OPERATOR_XOR,
+    Add = CAIRO_OPERATOR_ADD,
+    Saturate = CAIRO_OPERATOR_SATURATE,
 
-    multiply = CAIRO_OPERATOR_MULTIPLY,
-    screen = CAIRO_OPERATOR_SCREEN,
-    overlay = CAIRO_OPERATOR_OVERLAY,
-    darken = CAIRO_OPERATOR_DARKEN,
-    lighten = CAIRO_OPERATOR_LIGHTEN,
-    color_dodge = CAIRO_OPERATOR_COLOR_DODGE,
-    color_burn = CAIRO_OPERATOR_COLOR_BURN,
-    hard_light = CAIRO_OPERATOR_HARD_LIGHT,
-    soft_light = CAIRO_OPERATOR_SOFT_LIGHT,
-    difference = CAIRO_OPERATOR_DIFFERENCE,
-    exclusion = CAIRO_OPERATOR_EXCLUSION,
-    hsl_hue = CAIRO_OPERATOR_HSL_HUE,
-    hsl_saturation = CAIRO_OPERATOR_HSL_SATURATION,
-    hsl_color = CAIRO_OPERATOR_HSL_COLOR,
-    hsl_luminosity = CAIRO_OPERATOR_HSL_LUMINOSITY,
+    Multiply = CAIRO_OPERATOR_MULTIPLY,
+    Screen = CAIRO_OPERATOR_SCREEN,
+    Overlay = CAIRO_OPERATOR_OVERLAY,
+    Darken = CAIRO_OPERATOR_DARKEN,
+    Lighten = CAIRO_OPERATOR_LIGHTEN,
+    ColorDodge = CAIRO_OPERATOR_COLOR_DODGE,
+    ColorBurn = CAIRO_OPERATOR_COLOR_BURN,
+    HardLight = CAIRO_OPERATOR_HARD_LIGHT,
+    SoftLight = CAIRO_OPERATOR_SOFT_LIGHT,
+    Difference = CAIRO_OPERATOR_DIFFERENCE,
+    Exclusion = CAIRO_OPERATOR_EXCLUSION,
+    HslHue = CAIRO_OPERATOR_HSL_HUE,
+    HslSaturation = CAIRO_OPERATOR_HSL_SATURATION,
+    HslColor = CAIRO_OPERATOR_HSL_COLOR,
+    HslLuminosity = CAIRO_OPERATOR_HSL_LUMINOSITY,
   };
 
-  enum class antialias : std::underlying_type_t<cairo_antialias_t> {
-    preset = CAIRO_ANTIALIAS_DEFAULT,
+  enum class Antialias : std::underlying_type_t<cairo_antialias_t> { // NOLINT(performance-enum-size)
+    Default = CAIRO_ANTIALIAS_DEFAULT,
 
-    none = CAIRO_ANTIALIAS_NONE,
-    gray = CAIRO_ANTIALIAS_GRAY,
-    subpixel = CAIRO_ANTIALIAS_SUBPIXEL,
+    None = CAIRO_ANTIALIAS_NONE,
+    Gray = CAIRO_ANTIALIAS_GRAY,
+    Subpixel = CAIRO_ANTIALIAS_SUBPIXEL,
 
-    fast = CAIRO_ANTIALIAS_FAST,
-    good = CAIRO_ANTIALIAS_GOOD,
-    best = CAIRO_ANTIALIAS_BEST,
+    Fast = CAIRO_ANTIALIAS_FAST,
+    Good = CAIRO_ANTIALIAS_GOOD,
+    Best = CAIRO_ANTIALIAS_BEST,
   };
 
-  enum class fill_rule : std::underlying_type_t<cairo_fill_rule_t> {
-    winding = CAIRO_FILL_RULE_WINDING,
-    event_odd = CAIRO_FILL_RULE_EVEN_ODD,
+  enum class FillRule : std::underlying_type_t<cairo_fill_rule_t> { // NOLINT(performance-enum-size)
+    Winding = CAIRO_FILL_RULE_WINDING,
+    EvenOdd = CAIRO_FILL_RULE_EVEN_ODD,
   };
 
-  enum class line_cap : std::underlying_type_t<cairo_line_cap_t> {
-    butt = CAIRO_LINE_CAP_BUTT,
-    round = CAIRO_LINE_CAP_ROUND,
-    square = CAIRO_LINE_CAP_SQUARE,
+  enum class LineCap : std::underlying_type_t<cairo_line_cap_t> { // NOLINT(performance-enum-size)
+    Butt = CAIRO_LINE_CAP_BUTT,
+    Round = CAIRO_LINE_CAP_ROUND,
+    Square = CAIRO_LINE_CAP_SQUARE,
   };
 
-  enum class line_join : std::underlying_type_t<cairo_line_join_t> {
-    miter = CAIRO_LINE_JOIN_MITER,
-    round = CAIRO_LINE_JOIN_ROUND,
-    bevel = CAIRO_LINE_JOIN_BEVEL,
+  enum class LineJoin : std::underlying_type_t<cairo_line_join_t> { // NOLINT(performance-enum-size)
+    Miter = CAIRO_LINE_JOIN_MITER,
+    Round = CAIRO_LINE_JOIN_ROUND,
+    Bevel = CAIRO_LINE_JOIN_BEVEL,
   };
 
   /*
    * matrix
    */
 
-  struct matrix : private cairo_matrix_t {
+  struct Matrix : private cairo_matrix_t {
 
-    static matrix create(double  xx, double  yx, double  xy, double  yy, double  x0, double  y0) { matrix m; cairo_matrix_init(m, xx, yx, xy, yy, x0, y0); return m; }
-    static matrix create_identity() { matrix m; cairo_matrix_init_identity(m); return m; }
-    static matrix create_translate(double tx, double ty) { matrix m; cairo_matrix_init_translate(m, tx, ty); return m; }
-    static matrix create_scale(double sx, double sy) { matrix m; cairo_matrix_init_scale(m, sx, sy); return m; }
-    static matrix create_rotate(double radians) { matrix m; cairo_matrix_init_rotate(m, radians); return m; }
+    static Matrix create(double  xx, double  yx, double  xy, double  yy, double  x0, double  y0) { Matrix m; cairo_matrix_init(m, xx, yx, xy, yy, x0, y0); return m; }
+    static Matrix create_identity() { Matrix m; cairo_matrix_init_identity(m); return m; }
+    static Matrix create_translate(double tx, double ty) { Matrix m; cairo_matrix_init_translate(m, tx, ty); return m; }
+    static Matrix create_scale(double sx, double sy) { Matrix m; cairo_matrix_init_scale(m, sx, sy); return m; }
+    static Matrix create_rotate(double radians) { Matrix m; cairo_matrix_init_rotate(m, radians); return m; }
 
     void translate(double tx, double ty) { cairo_matrix_translate(this, tx, ty); }
     void scale(double sx, double sy) { cairo_matrix_scale(this, sx, sy); }
     void rotate(double radians) { cairo_matrix_rotate(this, radians); }
 
-    status invert() { return static_cast<status>(cairo_matrix_invert(this)); }
+    Status invert() { return static_cast<Status>(cairo_matrix_invert(this)); }
 
-    vec2f transform_distance(vec2f d) const { cairo_matrix_transform_distance(this, &d.x, &d.y); return d; }
-    vec2f transform_point(vec2f p) const { cairo_matrix_transform_point(this, &p.x, &p.y); return p; }
+    Vec2F transform_distance(Vec2F d) const { cairo_matrix_transform_distance(this, &d.x, &d.y); return d; }
+    Vec2F transform_point(Vec2F p) const { cairo_matrix_transform_point(this, &p.x, &p.y); return p; }
 
-    matrix operator*(const matrix& other) const { matrix res; cairo_matrix_multiply(res, this, other); return res; }
+    Matrix operator*(const Matrix& other) const { Matrix res; cairo_matrix_multiply(res, this, other); return res; }
 
     operator cairo_matrix_t*()
     {
@@ -373,246 +391,247 @@ namespace cairo {
   using glyph = cairo_glyph_t;
   using text_cluster = cairo_text_cluster_t;
 
-  enum class text_cluster_flags : std::underlying_type_t<cairo_text_cluster_flags_t> {
-    none = 0,
-    backward = CAIRO_TEXT_CLUSTER_FLAG_BACKWARD,
+  enum class TextClusterFlags : std::underlying_type_t<cairo_text_cluster_flags_t> { // NOLINT(performance-enum-size)
+    None = 0,
+    Backward = CAIRO_TEXT_CLUSTER_FLAG_BACKWARD,
   };
 
   // TODO: flags operators
 
-  using text_extents = cairo_text_extents_t;
-  using font_extents = cairo_font_extents_t;
+  using TextExtents = cairo_text_extents_t;
+  using FontExtents = cairo_font_extents_t;
 
-  enum class font_slant : std::underlying_type_t<cairo_font_slant_t> {
-    normal = CAIRO_FONT_SLANT_NORMAL,
-    italic = CAIRO_FONT_SLANT_ITALIC,
-    oblique = CAIRO_FONT_SLANT_OBLIQUE,
+  enum class FontSlant : std::underlying_type_t<cairo_font_slant_t> { // NOLINT(performance-enum-size)
+    Normal = CAIRO_FONT_SLANT_NORMAL,
+    Italic = CAIRO_FONT_SLANT_ITALIC,
+    Oblique = CAIRO_FONT_SLANT_OBLIQUE,
   };
 
-  enum class font_weight : std::underlying_type_t<cairo_font_weight_t> {
-    normal = CAIRO_FONT_WEIGHT_NORMAL,
-    bold = CAIRO_FONT_WEIGHT_BOLD,
+  enum class FontWeight : std::underlying_type_t<cairo_font_weight_t> { // NOLINT(performance-enum-size)
+    Normal = CAIRO_FONT_WEIGHT_NORMAL,
+    Bold = CAIRO_FONT_WEIGHT_BOLD,
   };
 
-  enum class subpixel_order : std::underlying_type_t<cairo_subpixel_order_t> {
-    preset = CAIRO_SUBPIXEL_ORDER_DEFAULT,
-    rgb = CAIRO_SUBPIXEL_ORDER_RGB,
-    bgr = CAIRO_SUBPIXEL_ORDER_BGR,
-    vrgb = CAIRO_SUBPIXEL_ORDER_VRGB,
-    vbgr = CAIRO_SUBPIXEL_ORDER_VBGR,
+  enum class SubpixelOrder : std::underlying_type_t<cairo_subpixel_order_t> { // NOLINT(performance-enum-size)
+    Default = CAIRO_SUBPIXEL_ORDER_DEFAULT,
+    Rgb = CAIRO_SUBPIXEL_ORDER_RGB,
+    Bgr = CAIRO_SUBPIXEL_ORDER_BGR,
+    Vrgb = CAIRO_SUBPIXEL_ORDER_VRGB,
+    Vbgr = CAIRO_SUBPIXEL_ORDER_VBGR,
   };
 
-  enum class hint_style : std::underlying_type_t<cairo_hint_style_t> {
-    preset = CAIRO_HINT_STYLE_DEFAULT,
-    none = CAIRO_HINT_STYLE_NONE,
-    slight = CAIRO_HINT_STYLE_SLIGHT,
-    medium = CAIRO_HINT_STYLE_MEDIUM,
-    full = CAIRO_HINT_STYLE_FULL,
+  enum class HintStyle : std::underlying_type_t<cairo_hint_style_t> { // NOLINT(performance-enum-size)
+    Default = CAIRO_HINT_STYLE_DEFAULT,
+    None = CAIRO_HINT_STYLE_NONE,
+    Slight = CAIRO_HINT_STYLE_SLIGHT,
+    Medium = CAIRO_HINT_STYLE_MEDIUM,
+    Full = CAIRO_HINT_STYLE_FULL,
   };
 
-  enum class hint_metrics : std::underlying_type_t<cairo_hint_metrics_t> {
-    preset = CAIRO_HINT_METRICS_DEFAULT,
-    off = CAIRO_HINT_METRICS_OFF,
-    on = CAIRO_HINT_METRICS_ON,
+  enum class HintMetrics : std::underlying_type_t<cairo_hint_metrics_t> { // NOLINT(performance-enum-size)
+    Default = CAIRO_HINT_METRICS_DEFAULT,
+    Off = CAIRO_HINT_METRICS_OFF,
+    On = CAIRO_HINT_METRICS_ON,
   };
 
-  class font_options {
+  class FontOptions {
   public:
-    font_options()
+    FontOptions()
     : m_options(cairo_font_options_create())
     {
     }
 
-    status get_status() { return static_cast<status>(cairo_font_options_status(m_options)); }
-    void merge(const font_options& other) { cairo_font_options_merge(m_options, other.m_options); }
+    Status status() { return static_cast<Status>(cairo_font_options_status(m_options)); }
+    void merge(const FontOptions& other) { cairo_font_options_merge(m_options, other.m_options); }
     unsigned long hash() const { return cairo_font_options_hash(m_options); }
 
-    void set_antialias(antialias aa) { cairo_font_options_set_antialias(m_options, static_cast<cairo_antialias_t>(aa)); }
-    antialias get_antialias() const { return static_cast<antialias>(cairo_font_options_get_antialias(m_options)); }
+    void set_antialias(Antialias aa) { cairo_font_options_set_antialias(m_options, static_cast<cairo_antialias_t>(aa)); }
+    Antialias antialias() const { return static_cast<Antialias>(cairo_font_options_get_antialias(m_options)); }
 
-    void set_subpixel_order(subpixel_order so) { cairo_font_options_set_subpixel_order(m_options, static_cast<cairo_subpixel_order_t>(so)); }
-    subpixel_order get_subpixel_order() const { return static_cast<subpixel_order>(cairo_font_options_get_subpixel_order(m_options)); }
+    void set_subpixel_order(SubpixelOrder so) { cairo_font_options_set_subpixel_order(m_options, static_cast<cairo_subpixel_order_t>(so)); }
+    SubpixelOrder subpixel_order() const { return static_cast<SubpixelOrder>(cairo_font_options_get_subpixel_order(m_options)); }
 
-    void set_hint_style(hint_style hs) { cairo_font_options_set_hint_style(m_options, static_cast<cairo_hint_style_t>(hs)); }
-    hint_style get_hint_style() const { return static_cast<hint_style>(cairo_font_options_get_hint_style(m_options)); }
+    void set_hint_style(HintStyle hs) { cairo_font_options_set_hint_style(m_options, static_cast<cairo_hint_style_t>(hs)); }
+    HintStyle hint_style() const { return static_cast<HintStyle>(cairo_font_options_get_hint_style(m_options)); }
 
-    void set_hint_metrics(hint_metrics hm) { cairo_font_options_set_hint_metrics(m_options, static_cast<cairo_hint_metrics_t>(hm)); }
-    hint_metrics get_hint_metrics() const { return static_cast<hint_metrics>(cairo_font_options_get_hint_metrics(m_options)); }
+    void set_hint_metrics(HintMetrics hm) { cairo_font_options_set_hint_metrics(m_options, static_cast<cairo_hint_metrics_t>(hm)); }
+    HintMetrics hint_metrics() const { return static_cast<HintMetrics>(cairo_font_options_get_hint_metrics(m_options)); }
 
     void set_variations(const char* variations) { cairo_font_options_set_variations(m_options, variations); }
-    const char* get_variations() { return cairo_font_options_get_variations(m_options); }
+    const char* variations() { return cairo_font_options_get_variations(m_options); }
 
-    bool operator==(const font_options& other) const { return cairo_font_options_equal(m_options, other.m_options); }
+    bool operator==(const FontOptions& other) const { return cairo_font_options_equal(m_options, other.m_options) != 0; }
 
   private:
-    friend class context;
-    friend class scaled_font;
-    friend class surface;
-    details::copyable_handle<cairo_font_options_t, cairo_font_options_copy, cairo_font_options_destroy> m_options;
+    friend class Context;
+    friend class ScaledFont;
+    friend class Surface;
+    details::CopyableHandle<cairo_font_options_t, cairo_font_options_copy, cairo_font_options_destroy> m_options;
   };
 
-  enum class font_type {
-    toy = CAIRO_FONT_TYPE_TOY,
-    ft = CAIRO_FONT_TYPE_FT,
-    win32 = CAIRO_FONT_TYPE_WIN32,
-    quartz = CAIRO_FONT_TYPE_QUARTZ,
-    user = CAIRO_FONT_TYPE_USER
+  enum class FontType : std::underlying_type_t<cairo_font_type_t> { // NOLINT(performance-enum-size)
+    Toy = CAIRO_FONT_TYPE_TOY,
+    Ft = CAIRO_FONT_TYPE_FT,
+    Win32 = CAIRO_FONT_TYPE_WIN32,
+    Quartz = CAIRO_FONT_TYPE_QUARTZ,
+    User = CAIRO_FONT_TYPE_USER
   };
 
-  class toy_font_face;
+  class ToyFontFace;
 
-  class font_face {
+  class FontFace {
   public:
 
-    status get_status() { return static_cast<status>(cairo_font_face_status(m_font)); }
-    font_type get_type() { return static_cast<font_type>(cairo_font_face_get_type(m_font)); }
+    Status status() { return static_cast<Status>(cairo_font_face_status(m_font)); }
+    FontType type() { return static_cast<FontType>(cairo_font_face_get_type(m_font)); }
 
-    inline toy_font_face& as_toy();
+    inline ToyFontFace& as_toy();
 
   protected:
-    font_face(cairo_font_face_t* font, details::increase_reference_type)
-    : m_font(font, details::increase_reference)
+    FontFace(cairo_font_face_t* font, [[maybe_unused]] details::IncreaseReferenceType incr)
+    : m_font(font, details::IncreaseReference)
     {
     }
 
-    struct derived_font_type {};
-    static constexpr derived_font_type derived_font = {};
+    struct DerivedFontType {};
+    static constexpr DerivedFontType DerivedFont = {};
 
-    font_face(cairo_font_face_t* font, derived_font_type)
+    FontFace(cairo_font_face_t* font, [[maybe_unused]] DerivedFontType derived)
     : m_font(font)
     {
     }
 
-    friend class context;
-    friend class scaled_font;
-    details::handle<cairo_font_face_t, cairo_font_face_reference, cairo_font_face_destroy> m_font;
+    cairo_font_face_t* raw() { return m_font; }
+
+  private:
+    friend class Context;
+    friend class ScaledFont;
+
+    details::Handle<cairo_font_face_t, cairo_font_face_reference, cairo_font_face_destroy> m_font;
   };
 
-  struct text_glyphs {
-    status result;
+  struct TextGlyphs {
+    Status result = Status::Success;
     std::vector<glyph> glyphs;
     std::vector<text_cluster> clusters;
-    text_cluster_flags flags;
+    TextClusterFlags flags = TextClusterFlags::None;
   };
 
-  class toy_font_face : public font_face {
+  class ToyFontFace : public FontFace {
   public:
-    toy_font_face(const char* family, font_slant slant, font_weight weight)
-    : font_face(cairo_toy_font_face_create(family, static_cast<cairo_font_slant_t>(slant), static_cast<cairo_font_weight_t>(weight)), derived_font)
+    ToyFontFace(const char* family, FontSlant slant, FontWeight weight)
+    : FontFace(cairo_toy_font_face_create(family, static_cast<cairo_font_slant_t>(slant), static_cast<cairo_font_weight_t>(weight)), DerivedFont)
     {
     }
 
-    const char* get_family() { return cairo_toy_font_face_get_family(m_font); }
-    font_slant get_slant() { return static_cast<font_slant>(cairo_toy_font_face_get_slant(m_font)); }
-    font_weight get_weight() { return static_cast<font_weight>(cairo_toy_font_face_get_weight(m_font)); }
+    const char* family() { return cairo_toy_font_face_get_family(raw()); }
+    FontSlant slant() { return static_cast<FontSlant>(cairo_toy_font_face_get_slant(raw())); }
+    FontWeight weight() { return static_cast<FontWeight>(cairo_toy_font_face_get_weight(raw())); }
   };
 
-  inline toy_font_face& font_face::as_toy() {
-    assert(get_type() == font_type::toy);
-    return static_cast<toy_font_face&>(*this);
+  inline ToyFontFace& FontFace::as_toy() {
+    assert(type() == FontType::Toy);
+    return static_cast<ToyFontFace&>(*this); // NOLINT(cppcoreguidelines-pro-type-static-cast-downcast)
   }
 
 
-  class scaled_font {
+  class ScaledFont {
   public:
-    scaled_font(font_face& font, const matrix& font_matrix, const matrix& ctm, const font_options& options)
+    ScaledFont(FontFace& font, const Matrix& font_matrix, const Matrix& ctm, const FontOptions& options)
     : m_font(cairo_scaled_font_create(font.m_font, font_matrix, ctm, options.m_options))
     {
     }
 
-    status get_status() { return static_cast<status>(cairo_scaled_font_status(m_font)); }
-    font_type get_type() { return static_cast<font_type>(cairo_scaled_font_get_type(m_font)); }
+    Status status() { return static_cast<Status>(cairo_scaled_font_status(m_font)); }
+    FontType type() { return static_cast<FontType>(cairo_scaled_font_get_type(m_font)); }
 
-    font_extents get_font_extents() { font_extents extents; cairo_scaled_font_extents(m_font, &extents); return extents; }
-    text_extents get_text_extents(const char* utf8) { text_extents extents; cairo_scaled_font_text_extents(m_font, utf8, &extents); return extents; }
-    text_extents get_glyph_extents(const glyph* glyphs, int num_glyphs) { text_extents extents; cairo_scaled_font_glyph_extents(m_font, glyphs, num_glyphs, &extents); return extents; }
+    FontExtents font_extents() { FontExtents extents; cairo_scaled_font_extents(m_font, &extents); return extents; }
+    TextExtents text_extents(const char* utf8) { TextExtents extents; cairo_scaled_font_text_extents(m_font, utf8, &extents); return extents; }
+    TextExtents glyph_extents(const glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_scaled_font_glyph_extents(m_font, glyphs, num_glyphs, &extents); return extents; }
     template<typename T>
-    text_extents get_glyph_extents(const T& glyphs) { text_extents extents; cairo_scaled_font_glyph_extents(m_font, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
+    TextExtents glyph_extents(const T& glyphs) { TextExtents extents; cairo_scaled_font_glyph_extents(m_font, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
 
-    text_glyphs text_to_glyphs(double x, double y, const char* utf8, int utf8_len)
+    TextGlyphs text_to_glyphs(double x, double y, const char* utf8, int utf8_len)
     {
       glyph* glyphs = nullptr;
-      int num_glyphs;
+      int num_glyphs = 0;
       text_cluster* clusters = nullptr;
-      int num_clusters;
-      cairo_text_cluster_flags_t flags;
+      int num_clusters = 0;
+      auto flags = cairo_text_cluster_flags_t(0);
 
-      text_glyphs ret;
+      TextGlyphs ret;
 
-      ret.result = static_cast<enum status>(cairo_scaled_font_text_to_glyphs(m_font, x, y, utf8, utf8_len, &glyphs, &num_glyphs, &clusters, &num_clusters, &flags));
+      ret.result = static_cast<enum Status>(cairo_scaled_font_text_to_glyphs(m_font, x, y, utf8, utf8_len, &glyphs, &num_glyphs, &clusters, &num_clusters, &flags));
 
-      if (ret.result == status::success) {
+      if (ret.result == Status::Success) {
         ret.glyphs.assign(glyphs, glyphs + num_glyphs);
         cairo_glyph_free(glyphs);
         ret.clusters.assign(clusters, clusters + num_clusters);
         cairo_text_cluster_free(clusters);
-        ret.flags = static_cast<text_cluster_flags>(flags);
+        ret.flags = static_cast<TextClusterFlags>(flags);
       }
 
       return ret;
     }
 
-    font_face get_font_face() { return { cairo_scaled_font_get_font_face(m_font), details::increase_reference }; }
-    matrix get_font_matrix() { matrix m; cairo_scaled_font_get_font_matrix(m_font, m); return m; }
-    matrix get_ctm() { matrix m; cairo_scaled_font_get_ctm(m_font, m); return m; }
-    matrix get_scale_matrix() { matrix m; cairo_scaled_font_get_scale_matrix(m_font, m); return m; }
-    font_options get_font_options() { font_options opt; cairo_scaled_font_get_font_options(m_font, opt.m_options); return opt; }
+    FontFace font_face() { return { cairo_scaled_font_get_font_face(m_font), details::IncreaseReference }; }
+    Matrix font_matrix() { Matrix m; cairo_scaled_font_get_font_matrix(m_font, m); return m; }
+    Matrix ctm() { Matrix m; cairo_scaled_font_get_ctm(m_font, m); return m; }
+    Matrix scale_matrix() { Matrix m; cairo_scaled_font_get_scale_matrix(m_font, m); return m; }
+    FontOptions font_options() { FontOptions opt; cairo_scaled_font_get_font_options(m_font, opt.m_options); return opt; }
 
   private:
-    scaled_font(cairo_scaled_font_t* font, details::increase_reference_type)
-    : m_font(font, details::increase_reference)
+    ScaledFont(cairo_scaled_font_t* font, [[maybe_unused]] details::IncreaseReferenceType incr)
+    : m_font(font, details::IncreaseReference)
     {
     }
 
-    friend class context;
-    details::handle<cairo_scaled_font_t, cairo_scaled_font_reference, cairo_scaled_font_destroy> m_font;
+    friend class Context;
+    details::Handle<cairo_scaled_font_t, cairo_scaled_font_reference, cairo_scaled_font_destroy> m_font;
   };
 
   /*
    * path
    */
 
-  enum class path_data_type : std::underlying_type_t<cairo_path_data_type_t> {
-    move_to = CAIRO_PATH_MOVE_TO,
-    line_to = CAIRO_PATH_LINE_TO,
-    curve_to = CAIRO_PATH_CURVE_TO,
-    close_path = CAIRO_PATH_CLOSE_PATH,
+  enum class PathDataType : std::underlying_type_t<cairo_path_data_type_t> { // NOLINT(performance-enum-size)
+    MoveTo = CAIRO_PATH_MOVE_TO,
+    LineTo = CAIRO_PATH_LINE_TO,
+    CurveTo = CAIRO_PATH_CURVE_TO,
+    ClosePath = CAIRO_PATH_CLOSE_PATH,
   };
 
-  using path_data = cairo_path_data_t;
+  using PathData = cairo_path_data_t;
 
-  class path_element {
+  class PathElement {
   public:
-    path_data_type get_type() const { return static_cast<path_data_type>(m_data[0].header.type);  }
+    PathDataType type() const { return static_cast<PathDataType>(m_data[0].header.type);  }
     int length() const { return m_data[0].header.length; }
 
-    vec2f get_point(int i) const
+    Vec2F point(int i) const
     {
       assert(i < length());
       return { m_data[i].point.x, m_data[i].point.y };
     }
 
-    vec2f operator[](int i) const { return get_point(i); }
+    Vec2F operator[](int i) const { return point(i); }
 
-    constexpr bool operator==(const path_element& other) const noexcept { return m_data == other.m_data; }
-    constexpr bool operator!=(const path_element& other) const noexcept { return m_data != other.m_data; }
+    constexpr bool operator==(const PathElement& other) const noexcept { return m_data == other.m_data; }
+    constexpr bool operator!=(const PathElement& other) const noexcept { return m_data != other.m_data; }
 
   private:
-    path_element(const path_data* data)
+    PathElement(const PathData* data)
     : m_data(data)
     {
     }
 
-    friend class path_iterator;
-    const path_data* m_data = nullptr;
+    friend class PathIterator;
+    const PathData* m_data = nullptr;
   };
 
-  struct path_sentinel {
-  };
-
-  class path_iterator {
+  class PathIterator {
   public:
-    using value_type = path_element;
+    using value_type = PathElement;
     using difference_type = int;
     using reference = value_type;
     using pointer = value_type;
@@ -621,357 +640,371 @@ namespace cairo {
     reference operator*() { return m_data; }
     pointer operator->() { return m_data; }
 
-    path_iterator& operator++() { m_data += m_data[0].header.length; return *this; }
-    path_iterator operator++(int) { path_iterator copy = *this; ++copy; return copy; }
+    PathIterator& operator++() { m_data += m_data[0].header.length; return *this; }
+    PathIterator operator++(int) { PathIterator copy = *this; ++copy; return copy; }
 
-    constexpr bool operator==(const path_iterator& other) const noexcept { return m_data == other.m_data; }
-    constexpr bool operator!=(const path_iterator& other) const noexcept { return m_data != other.m_data; }
+    constexpr bool operator==(const PathIterator& other) const noexcept { return m_data == other.m_data; }
+    constexpr bool operator!=(const PathIterator& other) const noexcept { return m_data != other.m_data; }
 
   private:
-    friend class path;
-    path_iterator(const path_data* data)
+    friend class Path;
+    PathIterator(const PathData* data)
     : m_data(data)
     {
     }
 
-    const path_data* m_data = nullptr;
+    const PathData* m_data = nullptr;
   };
 
-  class path {
+  class Path {
   public:
-    status get_status() const { return static_cast<status>(m_path.get()->status); };
+    Status status() const { return static_cast<Status>(m_path.get()->status); };
 
-    path_iterator begin() const { return m_path.get()->data; }
-    path_iterator end() const { return m_path.get()->data + m_path.get()->num_data; }
+    PathIterator begin() const { return m_path.get()->data; }
+    PathIterator end() const { return m_path.get()->data + m_path.get()->num_data; }
 
   private:
-    path(cairo_path* p)
+    Path(cairo_path* p)
     : m_path(p)
     {
     }
 
-    friend class context;
-    friend class mesh_pattern;
-    details::non_copyable_handle<cairo_path, cairo_path_destroy> m_path;
+    friend class Context;
+    friend class MeshPattern;
+    details::NonCopyableHandle<cairo_path, cairo_path_destroy> m_path;
   };
 
   /*
    * pattern
    */
 
-  enum class pattern_type : std::underlying_type_t<cairo_pattern_type_t> {
-    solid = CAIRO_PATTERN_TYPE_SOLID,
-    surface = CAIRO_PATTERN_TYPE_SURFACE,
-    linear = CAIRO_PATTERN_TYPE_LINEAR,
-    radial = CAIRO_PATTERN_TYPE_RADIAL,
-    mesh = CAIRO_PATTERN_TYPE_MESH,
-    raster_source = CAIRO_PATTERN_TYPE_RASTER_SOURCE,
+  enum class PatternType : std::underlying_type_t<cairo_pattern_type_t> { // NOLINT(performance-enum-size)
+    Solid = CAIRO_PATTERN_TYPE_SOLID,
+    Surface = CAIRO_PATTERN_TYPE_SURFACE,
+    Linear = CAIRO_PATTERN_TYPE_LINEAR,
+    Radial = CAIRO_PATTERN_TYPE_RADIAL,
+    Mesh = CAIRO_PATTERN_TYPE_MESH,
+    RasterSource = CAIRO_PATTERN_TYPE_RASTER_SOURCE,
   };
 
-  enum class extend : std::underlying_type_t<cairo_extend_t> {
-    none = CAIRO_EXTEND_NONE,
-    repeat = CAIRO_EXTEND_REPEAT,
-    reflect = CAIRO_EXTEND_REFLECT,
-    pad = CAIRO_EXTEND_PAD,
+  enum class Extend : std::underlying_type_t<cairo_extend_t> { // NOLINT(performance-enum-size)
+    None = CAIRO_EXTEND_NONE,
+    Repeat = CAIRO_EXTEND_REPEAT,
+    Reflect = CAIRO_EXTEND_REFLECT,
+    Pad = CAIRO_EXTEND_PAD,
   };
 
-  enum class filter : std::underlying_type_t<cairo_filter_t> {
-    fast = CAIRO_FILTER_FAST,
-    good = CAIRO_FILTER_GOOD,
-    best = CAIRO_FILTER_BEST,
-    nearest = CAIRO_FILTER_NEAREST,
-    bilinear = CAIRO_FILTER_BILINEAR,
-    gaussian = CAIRO_FILTER_GAUSSIAN,
+  enum class Filter : std::underlying_type_t<cairo_filter_t> { // NOLINT(performance-enum-size)
+    Fast = CAIRO_FILTER_FAST,
+    Good = CAIRO_FILTER_GOOD,
+    Best = CAIRO_FILTER_BEST,
+    Nearest = CAIRO_FILTER_NEAREST,
+    Bilinear = CAIRO_FILTER_BILINEAR,
+    Gaussian = CAIRO_FILTER_GAUSSIAN,
   };
 
-  class pattern {
+  class Pattern {
   public:
-    status get_status() { return static_cast<status>(cairo_pattern_status(m_pattern)); }
-    pattern_type get_type() { return static_cast<pattern_type>(cairo_pattern_get_type(m_pattern)); }
+    Status status() { return static_cast<Status>(cairo_pattern_status(m_pattern)); }
+    PatternType type() { return static_cast<PatternType>(cairo_pattern_get_type(m_pattern)); }
 
-    void set_matrix(const matrix& m) { cairo_pattern_set_matrix(m_pattern, m); }
-    matrix get_matrix() { matrix m; cairo_pattern_get_matrix(m_pattern, m); return m; }
+    void set_matrix(const Matrix& m) { cairo_pattern_set_matrix(m_pattern, m); }
+    Matrix matrix() { Matrix m; cairo_pattern_get_matrix(m_pattern, m); return m; }
 
-    void set_extend(extend e) { cairo_pattern_set_extend(m_pattern, static_cast<cairo_extend_t>(e)); }
-    extend get_extend() { return static_cast<extend>(cairo_pattern_get_extend(m_pattern)); }
+    void set_extend(Extend e) { cairo_pattern_set_extend(m_pattern, static_cast<cairo_extend_t>(e)); }
+    Extend extend() { return static_cast<Extend>(cairo_pattern_get_extend(m_pattern)); }
 
-    void set_filter(filter f) { cairo_pattern_set_filter(m_pattern, static_cast<cairo_filter_t>(f)); }
-    filter get_filter() { return static_cast<filter>(cairo_pattern_get_filter(m_pattern)); }
+    void set_filter(Filter f) { cairo_pattern_set_filter(m_pattern, static_cast<cairo_filter_t>(f)); }
+    Filter filter() { return static_cast<Filter>(cairo_pattern_get_filter(m_pattern)); }
 
   protected:
-    pattern(cairo_pattern_t* pat)
+    Pattern(cairo_pattern_t* pat)
     : m_pattern(pat)
     {
     }
 
-    pattern(cairo_pattern_t* pat, details::increase_reference_type)
-    : m_pattern(pat, details::increase_reference)
+    Pattern(cairo_pattern_t* pat, [[maybe_unused]] details::IncreaseReferenceType incr)
+    : m_pattern(pat, details::IncreaseReference)
     {
     }
 
-    friend class context;
-    details::handle<cairo_pattern_t, cairo_pattern_reference, cairo_pattern_destroy> m_pattern;
+    cairo_pattern_t* raw() { return m_pattern; }
+
+  private:
+    friend class Context;
+    details::Handle<cairo_pattern_t, cairo_pattern_reference, cairo_pattern_destroy> m_pattern;
   };
 
   /*
    * device
    */
 
-  enum class device_type : std::underlying_type_t<cairo_device_type_t> {
-    drm = CAIRO_DEVICE_TYPE_DRM,
-    gl = CAIRO_DEVICE_TYPE_GL,
-    script = CAIRO_DEVICE_TYPE_SCRIPT,
-    xcb = CAIRO_DEVICE_TYPE_XCB,
-    xlib = CAIRO_DEVICE_TYPE_XLIB,
-    xml = CAIRO_DEVICE_TYPE_XML,
-    cogl = CAIRO_DEVICE_TYPE_COGL,
-    win32 = CAIRO_DEVICE_TYPE_WIN32,
+  enum class DeviceType : std::underlying_type_t<cairo_device_type_t> { // NOLINT(performance-enum-size)
+    Drm = CAIRO_DEVICE_TYPE_DRM,
+    Gl = CAIRO_DEVICE_TYPE_GL,
+    Script = CAIRO_DEVICE_TYPE_SCRIPT,
+    Xcb = CAIRO_DEVICE_TYPE_XCB,
+    Xlib = CAIRO_DEVICE_TYPE_XLIB,
+    Xml = CAIRO_DEVICE_TYPE_XML,
+    Cogl = CAIRO_DEVICE_TYPE_COGL,
+    Win32 = CAIRO_DEVICE_TYPE_WIN32,
 
-    invalid = CAIRO_DEVICE_TYPE_INVALID,
+    Invalid = CAIRO_DEVICE_TYPE_INVALID,
   };
 
-  class device {
+  class Device {
   public:
-    device_type get_type() { return static_cast<device_type>(cairo_device_get_type(m_device)); }
-    status get_status() { return static_cast<status>(cairo_device_status(m_device)); }
+    DeviceType type() { return static_cast<DeviceType>(cairo_device_get_type(m_device)); }
+    Status status() { return static_cast<Status>(cairo_device_status(m_device)); }
 
-    status acquire() { return static_cast<status>(cairo_device_acquire(m_device)); }
+    Status acquire() { return static_cast<Status>(cairo_device_acquire(m_device)); }
     void release() { cairo_device_release(m_device); }
 
     void flush() { cairo_device_flush(m_device); }
     void finish() { cairo_device_finish(m_device); }
 
   private:
-    device(cairo_device_t* dev, details::increase_reference_type)
-    : m_device(dev, details::increase_reference)
+    Device(cairo_device_t* dev, [[maybe_unused]] details::IncreaseReferenceType incr)
+    : m_device(dev, details::IncreaseReference)
     {
     }
 
-    friend class surface;
-    details::handle<cairo_device_t, cairo_device_reference, cairo_device_destroy> m_device;
+    friend class Surface;
+    details::Handle<cairo_device_t, cairo_device_reference, cairo_device_destroy> m_device;
   };
 
   /*
    * surface
    */
 
-  enum class surface_type : std::underlying_type_t<cairo_surface_type_t> {
-    image = CAIRO_SURFACE_TYPE_IMAGE,
-    pdf = CAIRO_SURFACE_TYPE_PDF,
-    ps = CAIRO_SURFACE_TYPE_PS,
-    xlib = CAIRO_SURFACE_TYPE_XLIB,
-    xcb = CAIRO_SURFACE_TYPE_XCB,
-    glitz = CAIRO_SURFACE_TYPE_GLITZ,
-    quartz = CAIRO_SURFACE_TYPE_QUARTZ,
-    win32 = CAIRO_SURFACE_TYPE_WIN32,
-    beos = CAIRO_SURFACE_TYPE_BEOS,
-    directfb = CAIRO_SURFACE_TYPE_DIRECTFB,
-    svg = CAIRO_SURFACE_TYPE_SVG,
-    os2 = CAIRO_SURFACE_TYPE_OS2,
-    win32_printing = CAIRO_SURFACE_TYPE_WIN32_PRINTING,
-    quartz_image = CAIRO_SURFACE_TYPE_QUARTZ_IMAGE,
-    script = CAIRO_SURFACE_TYPE_SCRIPT,
-    qt = CAIRO_SURFACE_TYPE_QT,
-    recording = CAIRO_SURFACE_TYPE_RECORDING,
-    vg = CAIRO_SURFACE_TYPE_VG,
-    gl = CAIRO_SURFACE_TYPE_GL,
-    drm = CAIRO_SURFACE_TYPE_DRM,
-    tee = CAIRO_SURFACE_TYPE_TEE,
-    xml = CAIRO_SURFACE_TYPE_XML,
-    skia = CAIRO_SURFACE_TYPE_SKIA,
-    subsurface = CAIRO_SURFACE_TYPE_SUBSURFACE,
-    cogl = CAIRO_SURFACE_TYPE_COGL,
+  enum class SurfaceType : std::underlying_type_t<cairo_surface_type_t> { // NOLINT(performance-enum-size)
+    Image = CAIRO_SURFACE_TYPE_IMAGE,
+    Pdf = CAIRO_SURFACE_TYPE_PDF,
+    Ps = CAIRO_SURFACE_TYPE_PS,
+    Xlib = CAIRO_SURFACE_TYPE_XLIB,
+    Xcb = CAIRO_SURFACE_TYPE_XCB,
+    Glitz = CAIRO_SURFACE_TYPE_GLITZ,
+    Quartz = CAIRO_SURFACE_TYPE_QUARTZ,
+    Win32 = CAIRO_SURFACE_TYPE_WIN32,
+    Beos = CAIRO_SURFACE_TYPE_BEOS,
+    Directfb = CAIRO_SURFACE_TYPE_DIRECTFB,
+    Svg = CAIRO_SURFACE_TYPE_SVG,
+    Os2 = CAIRO_SURFACE_TYPE_OS2,
+    Win32Printing = CAIRO_SURFACE_TYPE_WIN32_PRINTING,
+    QuartzImage = CAIRO_SURFACE_TYPE_QUARTZ_IMAGE,
+    Script = CAIRO_SURFACE_TYPE_SCRIPT,
+    Qt = CAIRO_SURFACE_TYPE_QT,
+    Recording = CAIRO_SURFACE_TYPE_RECORDING,
+    Vg = CAIRO_SURFACE_TYPE_VG,
+    Gl = CAIRO_SURFACE_TYPE_GL,
+    Drm = CAIRO_SURFACE_TYPE_DRM,
+    Tee = CAIRO_SURFACE_TYPE_TEE,
+    Xml = CAIRO_SURFACE_TYPE_XML,
+    Skia = CAIRO_SURFACE_TYPE_SKIA,
+    Subsurface = CAIRO_SURFACE_TYPE_SUBSURFACE,
+    Cogl = CAIRO_SURFACE_TYPE_COGL,
   };
 
-  class surface {
+  class Surface {
   public:
-    status get_status() { return static_cast<status>(cairo_surface_status(m_surface)); }
-    surface_type get_type() { return static_cast<surface_type>(cairo_surface_get_type(m_surface)); }
-    content get_content() { return static_cast<content>(cairo_surface_get_content(m_surface)); }
+    Status status() { return static_cast<Status>(cairo_surface_status(m_surface)); }
+    SurfaceType type() { return static_cast<SurfaceType>(cairo_surface_get_type(m_surface)); }
+    Content content() { return static_cast<Content>(cairo_surface_get_content(m_surface)); }
 
-    surface create_similar(content cnt, int width, int height) { return cairo_surface_create_similar(m_surface, static_cast<cairo_content_t>(cnt), width, height); }
-    surface create_similar(content cnt, vec2i size) { return cairo_surface_create_similar(m_surface, static_cast<cairo_content_t>(cnt), size.x, size.y); }
-    surface create_similar_image(format fmt, int width, int height) { return cairo_surface_create_similar_image(m_surface, static_cast<cairo_format_t>(fmt), width, height); }
-    surface create_similar_image(format fmt, vec2i size) { return cairo_surface_create_similar_image(m_surface, static_cast<cairo_format_t>(fmt), size.x, size.y); }
-    surface create_for_rectangle(double x, double y, double width, double height) { return cairo_surface_create_for_rectangle(m_surface, x, y, width, height); }
-    surface create_for_rectangle(rectf rectangle) { return cairo_surface_create_for_rectangle(m_surface, rectangle.x, rectangle.y, rectangle.w, rectangle.h); }
+    Surface create_similar(Content cnt, int width, int height) { return cairo_surface_create_similar(m_surface, static_cast<cairo_content_t>(cnt), width, height); }
+    Surface create_similar(Content cnt, Vec2I size) { return cairo_surface_create_similar(m_surface, static_cast<cairo_content_t>(cnt), size.x, size.y); }
+    Surface create_similar_image(Format fmt, int width, int height) { return cairo_surface_create_similar_image(m_surface, static_cast<cairo_format_t>(fmt), width, height); }
+    Surface create_similar_image(Format fmt, Vec2I size) { return cairo_surface_create_similar_image(m_surface, static_cast<cairo_format_t>(fmt), size.x, size.y); }
+    Surface create_for_rectangle(double x, double y, double width, double height) { return cairo_surface_create_for_rectangle(m_surface, x, y, width, height); }
+    Surface create_for_rectangle(RectF rectangle) { return cairo_surface_create_for_rectangle(m_surface, rectangle.x, rectangle.y, rectangle.w, rectangle.h); }
 
     void finish() { cairo_surface_finish(m_surface); }
 
-    device get_device() { return { cairo_surface_get_device(m_surface), details::increase_reference };  }
+    Device device() { return { cairo_surface_get_device(m_surface), details::IncreaseReference };  }
 
 #if CAIRO_HAS_PNG_FUNCTIONS
-    status write_to_png(const char* filename) { return static_cast<status>(cairo_surface_write_to_png(m_surface, filename)); }
-    status write_to_png(const std::filesystem::path& filename) { return static_cast<status>(cairo_surface_write_to_png(m_surface, filename.string().c_str())); }
+    Status write_to_png(const char* filename) { return static_cast<Status>(cairo_surface_write_to_png(m_surface, filename)); }
+    Status write_to_png(const std::filesystem::path& filename) { return static_cast<Status>(cairo_surface_write_to_png(m_surface, filename.string().c_str())); }
 #endif
 
-    font_options get_font_options() { font_options opt; cairo_surface_get_font_options(m_surface, opt.m_options); return opt; };
+    FontOptions font_options() { FontOptions opt; cairo_surface_get_font_options(m_surface, opt.m_options); return opt; };
 
     void flush() { cairo_surface_flush(m_surface); }
     void mark_dirty() { cairo_surface_mark_dirty(m_surface); }
     void mark_dirty_rectangle(int x, int y, int width, int height) { cairo_surface_mark_dirty_rectangle(m_surface, x, y, width, height); }
-    void mark_dirty_rectangle(recti rectangle) { cairo_surface_mark_dirty_rectangle(m_surface, rectangle.x, rectangle.y, rectangle.w, rectangle.h); }
+    void mark_dirty_rectangle(RectI rectangle) { cairo_surface_mark_dirty_rectangle(m_surface, rectangle.x, rectangle.y, rectangle.w, rectangle.h); }
 
     void set_device_scale(double x_scale, double y_scale) { cairo_surface_set_device_scale(m_surface, x_scale, y_scale); }
-    void set_device_scale(vec2f scale) { cairo_surface_set_device_scale(m_surface, scale.x, scale.y); }
-    vec2f get_device_scale() { vec2f scale; cairo_surface_get_device_scale(m_surface, &scale.x, &scale.y); return scale; }
+    void set_device_scale(Vec2F scale) { cairo_surface_set_device_scale(m_surface, scale.x, scale.y); }
+    Vec2F device_scale() { Vec2F scale; cairo_surface_get_device_scale(m_surface, &scale.x, &scale.y); return scale; }
     void set_device_offset(double x_offset, double y_offset) { cairo_surface_set_device_offset(m_surface, x_offset, y_offset); }
-    void set_device_offset(vec2f offset) { cairo_surface_set_device_offset(m_surface, offset.x, offset.y); }
-    vec2f get_device_offset() { vec2f offset; cairo_surface_get_device_offset(m_surface, &offset.x, &offset.y); return offset; }
+    void set_device_offset(Vec2F offset) { cairo_surface_set_device_offset(m_surface, offset.x, offset.y); }
+    Vec2F device_offset() { Vec2F offset; cairo_surface_get_device_offset(m_surface, &offset.x, &offset.y); return offset; }
     void set_fallback_resolution(double x_pixels_per_inch, double y_pixels_per_inch) { cairo_surface_set_fallback_resolution(m_surface, x_pixels_per_inch, y_pixels_per_inch); }
-    void set_fallback_resolution(vec2f pixels_per_inch) { cairo_surface_set_fallback_resolution(m_surface, pixels_per_inch.x, pixels_per_inch.y); }
-    vec2f get_fallback_resolution() { vec2f pixels_per_inch; cairo_surface_get_fallback_resolution(m_surface, &pixels_per_inch.x, &pixels_per_inch.y); return pixels_per_inch; }
+    void set_fallback_resolution(Vec2F pixels_per_inch) { cairo_surface_set_fallback_resolution(m_surface, pixels_per_inch.x, pixels_per_inch.y); }
+    Vec2F fallback_resolution() { Vec2F pixels_per_inch; cairo_surface_get_fallback_resolution(m_surface, &pixels_per_inch.x, &pixels_per_inch.y); return pixels_per_inch; }
 
     void copy_page() { cairo_surface_copy_page(m_surface); }
     void show_page() { cairo_surface_show_page(m_surface); }
-    bool has_show_text_glyphs() { return cairo_surface_has_show_text_glyphs(m_surface); }
+    bool has_show_text_glyphs() { return cairo_surface_has_show_text_glyphs(m_surface) != 0; }
 
   protected:
-    surface(cairo_surface_t* surf)
+    Surface(cairo_surface_t* surf)
     : m_surface(surf)
     {
     }
 
-    surface(cairo_surface_t* surf, details::increase_reference_type)
-    : m_surface(surf, details::increase_reference)
+    Surface(cairo_surface_t* surf, [[maybe_unused]] details::IncreaseReferenceType incr)
+    : m_surface(surf, details::IncreaseReference)
     {
     }
 
-    friend class context;
-    friend class surface_pattern;
-    details::handle<cairo_surface_t, cairo_surface_reference, cairo_surface_destroy> m_surface;
+    cairo_surface_t* raw() { return m_surface; }
+
+  private:
+    friend class Context;
+    friend class SurfacePattern;
+    details::Handle<cairo_surface_t, cairo_surface_reference, cairo_surface_destroy> m_surface;
   };
 
   /*
    * context
    */
 
-  struct dash_array {
+  struct DashArray {
     std::vector<double> dashes;
-    double offset;
+    double offset = 0.0;
   };
 
-  class context {
+  class Context {
   public:
-    context(surface& surf)
+    Context(Surface& surf)
     : m_context(cairo_create(surf.m_surface))
     {
     }
 
-    status get_status() { return static_cast<status>(cairo_status(m_context)); }
-    surface get_target() { return { cairo_get_target(m_context), details::increase_reference }; }
+    Status status() { return static_cast<Status>(cairo_status(m_context)); }
+    Surface target() { return { cairo_get_target(m_context), details::IncreaseReference }; }
 
     void save() { cairo_save(m_context); }
     void restore() { cairo_restore(m_context); }
 
     void push_group() { cairo_push_group(m_context); }
-    void push_group_with_content(content c) { cairo_push_group_with_content(m_context, static_cast<cairo_content_t>(c)); }
-    pattern pop_group() { return pattern(cairo_pop_group(m_context)); }
+    void push_group_with_content(Content c) { cairo_push_group_with_content(m_context, static_cast<cairo_content_t>(c)); }
+    Pattern pop_group() { return cairo_pop_group(m_context); }
     void pop_group_to_source() { cairo_pop_group_to_source(m_context); }
-    surface get_group_target() { return { cairo_get_group_target(m_context), details::increase_reference }; }
+    Surface group_target() { return { cairo_get_group_target(m_context), details::IncreaseReference }; }
 
     // modify state
 
-    void set_operator(compositing_operator op) { cairo_set_operator(m_context, static_cast<cairo_operator_t>(op)); }
-    compositing_operator get_operator() { return static_cast<compositing_operator>(cairo_get_operator(m_context)); }
-    void set_source(pattern& pat) { cairo_set_source(m_context, pat.m_pattern); }
-    pattern get_source() { return { cairo_get_source(m_context), details::increase_reference }; }
-    void set_source(surface& surf, double x, double y) { cairo_set_source_surface(m_context, surf.m_surface, x, y); }
-    void set_source(surface& surf, vec2f origin) { cairo_set_source_surface(m_context, surf.m_surface, origin.x, origin.y); }
+    void set_compositing_operator(Operator op) { cairo_set_operator(m_context, static_cast<cairo_operator_t>(op)); }
+    Operator compositing_operator() { return static_cast<Operator>(cairo_get_operator(m_context)); }
+    void set_source(Pattern& pat) { cairo_set_source(m_context, pat.m_pattern); }
+    Pattern source() { return { cairo_get_source(m_context), details::IncreaseReference }; }
+    void set_source(Surface& surf, double x, double y) { cairo_set_source_surface(m_context, surf.m_surface, x, y); }
+    void set_source(Surface& surf, Vec2F origin) { cairo_set_source_surface(m_context, surf.m_surface, origin.x, origin.y); }
     void set_source_rgb(double red, double green, double blue) { cairo_set_source_rgb(m_context, red, green, blue); }
     void set_source_rgba(double red, double green, double blue, double alpha) { cairo_set_source_rgba(m_context, red, green, blue, alpha); }
-    void set_source_color(color col) { cairo_set_source_rgba(m_context, col.r, col.g, col.b, col.a); }
+    void set_source_color(Color col) { cairo_set_source_rgba(m_context, col.r, col.g, col.b, col.a); }
     void set_tolerance(double tolerance) { cairo_set_tolerance(m_context, tolerance); }
-    double get_tolerence() { return cairo_get_tolerance(m_context); }
+    double tolerance() { return cairo_get_tolerance(m_context); }
 
-    void set_antialias(antialias aa) { cairo_set_antialias(m_context, static_cast<cairo_antialias_t>(aa)); }
-    antialias get_antialias() { return static_cast<antialias>(cairo_get_antialias(m_context)); }
+    void set_antialias(Antialias aa) { cairo_set_antialias(m_context, static_cast<cairo_antialias_t>(aa)); }
+    Antialias antialias() { return static_cast<Antialias>(cairo_get_antialias(m_context)); }
 
-    void set_fill_rule(fill_rule fr) { cairo_set_fill_rule(m_context, static_cast<cairo_fill_rule_t>(fr)); }
-    fill_rule get_fill_rule() { return static_cast<fill_rule>(cairo_get_fill_rule(m_context)); }
+    void set_fill_rule(FillRule fr) { cairo_set_fill_rule(m_context, static_cast<cairo_fill_rule_t>(fr)); }
+    FillRule fill_rule() { return static_cast<FillRule>(cairo_get_fill_rule(m_context)); }
     void set_line_width(double width) { cairo_set_line_width(m_context, width); }
-    double get_line_width() { return cairo_get_line_width(m_context); }
-    void set_line_cap(line_cap lc) { cairo_set_line_cap(m_context, static_cast<cairo_line_cap_t>(lc)); }
-    line_cap get_line_cap() { return static_cast<line_cap>(cairo_get_line_cap(m_context)); }
-    void set_line_join(line_join lj) { cairo_set_line_join(m_context, static_cast<cairo_line_join_t>(lj)); }
-    line_join get_line_join() { return static_cast<line_join>(cairo_get_line_join(m_context)); }
+    double line_width() { return cairo_get_line_width(m_context); }
+    void set_line_cap(LineCap lc) { cairo_set_line_cap(m_context, static_cast<cairo_line_cap_t>(lc)); }
+    LineCap line_cap() { return static_cast<LineCap>(cairo_get_line_cap(m_context)); }
+    void set_line_join(LineJoin lj) { cairo_set_line_join(m_context, static_cast<cairo_line_join_t>(lj)); }
+    LineJoin line_join() { return static_cast<LineJoin>(cairo_get_line_join(m_context)); }
 
     void set_dash(const double* dashes, int num_dashes, double offset) { cairo_set_dash(m_context, dashes, num_dashes, offset); };
     template<typename T>
     void set_dash(const T& dashes, double offset) { cairo_set_dash(m_context, std::data(dashes), static_cast<int>(std::size(dashes)), offset); }
-    int get_dash_count() { return cairo_get_dash_count(m_context); }
-    dash_array get_dash()
+    int dash_count() { return cairo_get_dash_count(m_context); }
+    DashArray dash()
     {
-      const int count = get_dash_count();
-      dash_array array;
+      const int count = dash_count();
+      DashArray array;
       array.dashes.resize(count);
       cairo_get_dash(m_context, array.dashes.data(), &array.offset);
       return array;
     }
 
     void set_miter_limit(double limit) { cairo_set_miter_limit(m_context, limit); }
-    double get_mitter_limit() { return cairo_get_miter_limit(m_context); }
+    double mitter_limit() { return cairo_get_miter_limit(m_context); }
 
-    context& translate(double tx, double ty) { cairo_translate(m_context, tx, ty); return *this; };
-    context& translate(vec2f translation) { cairo_translate(m_context, translation.x, translation.y); return *this; };
-    context& scale(double sx, double sy) { cairo_scale(m_context, sx, sy); return *this; }
-    context& scale(vec2f scale) { cairo_scale(m_context, scale.x, scale.y); return *this; }
-    context& rotate(double angle) { cairo_rotate(m_context, angle); return *this; }
-    context& transform(const matrix& m) { cairo_transform(m_context, m); return *this; }
+    Context& translate(double tx, double ty) { cairo_translate(m_context, tx, ty); return *this; };
+    Context& translate(Vec2F translation) { cairo_translate(m_context, translation.x, translation.y); return *this; };
+    Context& scale(double sx, double sy) { cairo_scale(m_context, sx, sy); return *this; }
+    Context& scale(Vec2F scale) { cairo_scale(m_context, scale.x, scale.y); return *this; }
+    Context& rotate(double angle) { cairo_rotate(m_context, angle); return *this; }
+    Context& transform(const Matrix& m) { cairo_transform(m_context, m); return *this; }
 
-    void set_matrix(const matrix& m) { cairo_set_matrix(m_context, m); }
-    matrix get_matrix() { matrix m; cairo_get_matrix(m_context, m); return m; }
+    void set_matrix(const Matrix& m) { cairo_set_matrix(m_context, m); }
+    Matrix matrix() { Matrix m; cairo_get_matrix(m_context, m); return m; }
     void identity_matrix() { cairo_identity_matrix(m_context); }
 
-    vec2f user_to_device(double x, double y) { cairo_user_to_device(m_context, &x, &y); return { x, y }; }
-    vec2f user_to_device(vec2f point) { cairo_user_to_device(m_context, &point.x, &point.y); return point; }
-    vec2f user_to_device_distance(double dx, double dy) { cairo_user_to_device_distance(m_context, &dx, &dy); return { dx, dy }; }
-    vec2f user_to_device_distance(vec2f distance) { cairo_user_to_device_distance(m_context, &distance.x, &distance.y); return distance; }
-    vec2f device_to_user(double x, double y) { cairo_device_to_user(m_context, &x, &y); return { x, y }; }
-    vec2f device_to_user(vec2f point) { cairo_device_to_user(m_context, &point.x, &point.y); return point; }
-    vec2f device_to_user_distance(double dx, double dy) { cairo_device_to_user_distance(m_context, &dx, &dy); return { dx, dy }; }
-    vec2f device_to_user_distance(vec2f distance) { cairo_device_to_user_distance(m_context, &distance.x, &distance.y); return distance; }
+    Vec2F user_to_device(double x, double y) { cairo_user_to_device(m_context, &x, &y); return { x, y }; }
+    Vec2F user_to_device(Vec2F point) { cairo_user_to_device(m_context, &point.x, &point.y); return point; }
+    Vec2F user_to_device_distance(double dx, double dy) { cairo_user_to_device_distance(m_context, &dx, &dy); return { dx, dy }; }
+    Vec2F user_to_device_distance(Vec2F distance) { cairo_user_to_device_distance(m_context, &distance.x, &distance.y); return distance; }
+    Vec2F device_to_user(double x, double y) { cairo_device_to_user(m_context, &x, &y); return { x, y }; }
+    Vec2F device_to_user(Vec2F point) { cairo_device_to_user(m_context, &point.x, &point.y); return point; }
+    Vec2F device_to_user_distance(double dx, double dy) { cairo_device_to_user_distance(m_context, &dx, &dy); return { dx, dy }; }
+    Vec2F device_to_user_distance(Vec2F distance) { cairo_device_to_user_distance(m_context, &distance.x, &distance.y); return distance; }
 
     // path creation function
 
-    context& new_path() { cairo_new_path(m_context); return *this; }
-    context& new_sub_path() { cairo_new_sub_path(m_context); return *this; }
-    context& move_to(double x, double y) { cairo_move_to(m_context, x, y); return *this; }
-    context& move_to(vec2f point) { cairo_move_to(m_context, point.x, point.y); return *this; }
-    context& line_to(double x, double y) { cairo_line_to(m_context, x, y); return *this; }
-    context& line_to(vec2f point) { cairo_line_to(m_context, point.x, point.y); return *this; }
-    context& curve_to(double x1, double y1, double x2, double y2, double x3, double y3) { cairo_curve_to(m_context, x1, y1, x2, y2, x3, y3); return *this; }
-    context& curve_to(vec2f p1, vec2f p2, vec2f p3) { cairo_curve_to(m_context, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); return *this; }
-    context& arc(double xc, double yc, double radius, double angle1, double angle2) { cairo_arc(m_context, xc, yc, radius, angle1, angle2); return *this; }
-    context& arc(vec2f center, double radius, double angle1, double angle2) { cairo_arc(m_context, center.x, center.y, radius, angle1, angle2); return *this; }
-    context& arc_negative(double xc, double yc, double radius, double angle1, double angle2) { cairo_arc_negative(m_context, xc, yc, radius, angle1, angle2); return *this; }
-    context& arc_negative(vec2f center, double radius, double angle1, double angle2) { cairo_arc_negative(m_context, center.x, center.y, radius, angle1, angle2); return *this; }
-    context& rel_move_to(double dx, double dy) { cairo_rel_move_to(m_context, dx, dy); return *this; }
-    context& rel_move_to(vec2f d) { cairo_rel_move_to(m_context, d.x, d.y); return *this; }
-    context& rel_line_to(double dx, double dy) { cairo_rel_line_to(m_context, dx, dy); return *this; }
-    context& rel_line_to(vec2f d) { cairo_rel_line_to(m_context, d.x, d.y); return *this; }
-    context& rel_curve_to(double dx1, double dy1, double dx2, double dy2, double dx3, double dy3) { cairo_rel_curve_to(m_context, dx1, dy1, dx2, dy2, dx3, dy3); return *this; }
-    context& rel_curve_to(vec2f d1, vec2f d2, vec2f d3) { cairo_curve_to(m_context, d1.x, d1.y, d2.x, d2.y, d3.x, d3.y); return *this; }
-    context& rectangle(double x, double y, double w, double h) { cairo_rectangle(m_context, x, y, w, h); return *this; }
-    context& rectangle(const rectf& r) { cairo_rectangle(m_context, r.x, r.y, r.w, r.h); return *this; }
+    Context& new_path() { cairo_new_path(m_context); return *this; }
+    Context& new_sub_path() { cairo_new_sub_path(m_context); return *this; }
+    Context& move_to(double x, double y) { cairo_move_to(m_context, x, y); return *this; }
+    Context& move_to(Vec2F point) { cairo_move_to(m_context, point.x, point.y); return *this; }
+    Context& line_to(double x, double y) { cairo_line_to(m_context, x, y); return *this; }
+    Context& line_to(Vec2F point) { cairo_line_to(m_context, point.x, point.y); return *this; }
+    Context& curve_to(double x1, double y1, double x2, double y2, double x3, double y3) { cairo_curve_to(m_context, x1, y1, x2, y2, x3, y3); return *this; }
+    Context& curve_to(Vec2F p1, Vec2F p2, Vec2F p3) { cairo_curve_to(m_context, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); return *this; }
+    Context& arc(double xc, double yc, double radius, double angle1, double angle2) { cairo_arc(m_context, xc, yc, radius, angle1, angle2); return *this; }
+    Context& arc(Vec2F center, double radius, double angle1, double angle2) { cairo_arc(m_context, center.x, center.y, radius, angle1, angle2); return *this; }
+    Context& arc_negative(double xc, double yc, double radius, double angle1, double angle2) { cairo_arc_negative(m_context, xc, yc, radius, angle1, angle2); return *this; }
+    Context& arc_negative(Vec2F center, double radius, double angle1, double angle2) { cairo_arc_negative(m_context, center.x, center.y, radius, angle1, angle2); return *this; }
+    Context& rel_move_to(double dx, double dy) { cairo_rel_move_to(m_context, dx, dy); return *this; }
+    Context& rel_move_to(Vec2F d) { cairo_rel_move_to(m_context, d.x, d.y); return *this; }
+    Context& rel_line_to(double dx, double dy) { cairo_rel_line_to(m_context, dx, dy); return *this; }
+    Context& rel_line_to(Vec2F d) { cairo_rel_line_to(m_context, d.x, d.y); return *this; }
+    Context& rel_curve_to(double dx1, double dy1, double dx2, double dy2, double dx3, double dy3) { cairo_rel_curve_to(m_context, dx1, dy1, dx2, dy2, dx3, dy3); return *this; }
+    Context& rel_curve_to(Vec2F d1, Vec2F d2, Vec2F d3) { cairo_curve_to(m_context, d1.x, d1.y, d2.x, d2.y, d3.x, d3.y); return *this; }
+    Context& rectangle(double x, double y, double w, double h) { cairo_rectangle(m_context, x, y, w, h); return *this; }
+    Context& rectangle(const RectF& r) { cairo_rectangle(m_context, r.x, r.y, r.w, r.h); return *this; }
     void close_path() { cairo_close_path(m_context); }
 
-    rectf path_extents() { double x1, y1, x2, y2; cairo_path_extents(m_context, &x1, &y1, &x2, &y2); return { x1, y1, x2 - x1, y2 -y1 }; }
+    RectF path_extents()
+    {
+      double x1 = 0.0;
+      double y1 = 0.0;
+      double x2 = 0.0;
+      double y2 = 0.0;
+      cairo_path_extents(m_context, &x1, &y1, &x2, &y2);
+      return { x1, y1, x2 - x1, y2 -y1 };
+    }
 
-    bool has_current_point() { return cairo_has_current_point(m_context); }
-    vec2f get_current_point() { vec2f point; cairo_get_current_point(m_context, &point.x, &point.y); return point; }
+    bool has_current_point() { return cairo_has_current_point(m_context) != 0; }
+    Vec2F current_point() { Vec2F point; cairo_get_current_point(m_context, &point.x, &point.y); return point; }
 
-    path copy_path() { return cairo_copy_path(m_context); }
-    path copy_path_flat() { return cairo_copy_path_flat(m_context); }
-    void append_path(const path& p) { cairo_append_path(m_context, p.m_path); }
+    Path copy_path() { return cairo_copy_path(m_context); }
+    Path copy_path_flat() { return cairo_copy_path_flat(m_context); }
+    void append_path(const Path& p) { cairo_append_path(m_context, p.m_path); }
 
     // painting
 
     void paint() { cairo_paint(m_context); }
     void paint_with_alpha(double alpha) { cairo_paint_with_alpha(m_context, alpha); }
-    void mask(pattern& pat) { cairo_mask(m_context, pat.m_pattern); }
-    void mask(surface& surf, double surface_x, double surface_y) { cairo_mask_surface(m_context, surf.m_surface, surface_x, surface_y); }
-    void mask(surface& surf, vec2f origin) { cairo_mask_surface(m_context, surf.m_surface, origin.x, origin.y); }
+    void mask(Pattern& pat) { cairo_mask(m_context, pat.m_pattern); }
+    void mask(Surface& surf, double surface_x, double surface_y) { cairo_mask_surface(m_context, surf.m_surface, surface_x, surface_y); }
+    void mask(Surface& surf, Vec2F origin) { cairo_mask_surface(m_context, surf.m_surface, origin.x, origin.y); }
     void stroke() { cairo_stroke(m_context); }
     void stroke_preserve() { cairo_stroke_preserve(m_context); }
     void fill() { cairo_fill(m_context); }
@@ -981,25 +1014,51 @@ namespace cairo {
 
     // insideness testing
 
-    bool in_stroke(double x, double y) { return cairo_in_stroke(m_context, x, y); }
-    bool in_stroke(vec2f point) { return cairo_in_stroke(m_context, point.x, point.y); }
-    bool in_fill(double x, double y) { return cairo_in_fill(m_context, x, y); }
-    bool in_fill(vec2f point) { return cairo_in_fill(m_context, point.x, point.y); }
-    bool in_clip(double x, double y) { return cairo_in_clip(m_context, x, y); }
-    bool in_clip(vec2f point) { return cairo_in_clip(m_context, point.x, point.y); }
+    bool in_stroke(double x, double y) { return cairo_in_stroke(m_context, x, y) != 0; }
+    bool in_stroke(Vec2F point) { return cairo_in_stroke(m_context, point.x, point.y) != 0; }
+    bool in_fill(double x, double y) { return cairo_in_fill(m_context, x, y) != 0; }
+    bool in_fill(Vec2F point) { return cairo_in_fill(m_context, point.x, point.y) != 0; }
+    bool in_clip(double x, double y) { return cairo_in_clip(m_context, x, y) != 0; }
+    bool in_clip(Vec2F point) { return cairo_in_clip(m_context, point.x, point.y) != 0; }
 
     // rectangular extents
 
-    rectf stroke_extents() { double x1, y1, x2, y2; cairo_stroke_extents(m_context, &x1, &y1, &x2, &y2); return { x1, y1, x2 - x1, y2 -y1 }; }
-    rectf fill_extents() { double x1, y1, x2, y2; cairo_fill_extents(m_context, &x1, &y1, &x2, &y2); return { x1, y1, x2 - x1, y2 -y1 }; }
+    RectF stroke_extents()
+    {
+      double x1 = 0.0;
+      double y1 = 0.0;
+      double x2 = 0.0;
+      double y2 = 0.0;
+      cairo_stroke_extents(m_context, &x1, &y1, &x2, &y2);
+      return { x1, y1, x2 - x1, y2 -y1 };
+    }
+
+    RectF fill_extents()
+    {
+      double x1 = 0.0;
+      double y1 = 0.0;
+      double x2 = 0.0;
+      double y2 = 0.0;
+      cairo_fill_extents(m_context, &x1, &y1, &x2, &y2);
+      return { x1, y1, x2 - x1, y2 -y1 };
+    }
 
     // clipping
 
     void reset_clip() { cairo_reset_clip(m_context); }
     void clip() { cairo_clip(m_context); }
     void clip_preserve() { cairo_clip_preserve(m_context); }
-    rectf clip_extents() { double x1, y1, x2, y2; cairo_clip_extents(m_context, &x1, &y1, &x2, &y2); return { x1, y1, x2 - x1, y2 -y1 }; }
-    std::vector<rectf> clip_rectangle_list()
+    RectF clip_extents()
+    {
+      double x1 = 0.0;
+      double y1 = 0.0;
+      double x2 = 0.0;
+      double y2 = 0.0;
+      cairo_clip_extents(m_context, &x1, &y1, &x2, &y2);
+      return { x1, y1, x2 - x1, y2 -y1 };
+    }
+
+    std::vector<RectF> clip_rectangle_list()
     {
       std::unique_ptr<cairo_rectangle_list_t, decltype(&cairo_rectangle_list_destroy)> ptr(cairo_copy_clip_rectangle_list(m_context), cairo_rectangle_list_destroy);
 
@@ -1007,7 +1066,7 @@ namespace cairo {
         return {};
       }
 
-      std::vector<rectf> list;
+      std::vector<RectF> list;
 
       for (int i = 0; i < ptr->num_rectangles; ++i) {
         auto r = ptr->rectangles[i];
@@ -1024,217 +1083,218 @@ namespace cairo {
 
     // text
 
-    void select_font_face(const char* family, font_slant slant, font_weight weight) { cairo_select_font_face(m_context, family, static_cast<cairo_font_slant_t>(slant), static_cast<cairo_font_weight_t>(weight)); }
+    void select_font_face(const char* family, FontSlant slant, FontWeight weight) { cairo_select_font_face(m_context, family, static_cast<cairo_font_slant_t>(slant), static_cast<cairo_font_weight_t>(weight)); }
     void set_font_size(double size) { cairo_set_font_size(m_context, size); }
-    void set_font_matrix(const matrix& m) { cairo_set_font_matrix(m_context, m); }
-    matrix get_font_matrix() { matrix m; cairo_get_font_matrix(m_context, m); return m; }
-    void set_font_options(const font_options& opt) { cairo_set_font_options(m_context, opt.m_options); }
-    font_options get_font_options() { font_options opt; cairo_get_font_options(m_context, opt.m_options); return opt; }
-    void set_font_face(font_face& font) { cairo_set_font_face(m_context, font.m_font); }
-    font_face get_font_face() { return { cairo_get_font_face(m_context), details::increase_reference }; }
-    void set_scaled_font(scaled_font& font) { cairo_set_scaled_font(m_context, font.m_font); }
-    scaled_font get_scaled_font() { return { cairo_get_scaled_font(m_context), details::increase_reference }; }
+    void set_font_matrix(const Matrix& m) { cairo_set_font_matrix(m_context, m); }
+    Matrix font_matrix() { Matrix m; cairo_get_font_matrix(m_context, m); return m; }
+    void set_font_options(const FontOptions& opt) { cairo_set_font_options(m_context, opt.m_options); }
+    FontOptions font_options() { FontOptions opt; cairo_get_font_options(m_context, opt.m_options); return opt; }
+    void set_font_face(FontFace& font) { cairo_set_font_face(m_context, font.m_font); }
+    FontFace font_face() { return { cairo_get_font_face(m_context), details::IncreaseReference }; }
+    void set_scaled_font(ScaledFont& font) { cairo_set_scaled_font(m_context, font.m_font); }
+    ScaledFont scaled_font() { return { cairo_get_scaled_font(m_context), details::IncreaseReference }; }
 
     void show_text(const char* utf8) { cairo_show_text(m_context, utf8); }
     void show_glyphs(const glyph* glyphs, int num_glyphs) { cairo_show_glyphs(m_context, glyphs, num_glyphs); }
     template<typename T>
     void show_glyphs(const T& glyphs) { cairo_show_glyphs(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs))); }
-    void show_text_glyphs(const char* utf8, int utf8_len, const glyph* glyphs, int num_glyphs, const text_cluster* clusters, int num_clusters, text_cluster_flags cluster_flags = text_cluster_flags::none) { cairo_show_text_glyphs(m_context, utf8, utf8_len, glyphs, num_glyphs, clusters, num_clusters, static_cast<cairo_text_cluster_flags_t>(cluster_flags)); }
+    void show_text_glyphs(const char* utf8, int utf8_len, const glyph* glyphs, int num_glyphs, const text_cluster* clusters, int num_clusters, TextClusterFlags cluster_flags = TextClusterFlags::None) { cairo_show_text_glyphs(m_context, utf8, utf8_len, glyphs, num_glyphs, clusters, num_clusters, static_cast<cairo_text_cluster_flags_t>(cluster_flags)); }
     template<typename T, typename U>
-    void show_text_glyphs(std::string_view utf8, const T& glyphs, const U& clusters, text_cluster_flags cluster_flags = text_cluster_flags::none) { cairo_show_text_glyphs(m_context, std::data(utf8), static_cast<int>(std::size(utf8)), std::data(glyphs), static_cast<int>(std::size(glyphs)), std::data(clusters), static_cast<int>(std::size(clusters)), cluster_flags); }
+    void show_text_glyphs(std::string_view utf8, const T& glyphs, const U& clusters, TextClusterFlags cluster_flags = TextClusterFlags::None) { cairo_show_text_glyphs(m_context, std::data(utf8), static_cast<int>(std::size(utf8)), std::data(glyphs), static_cast<int>(std::size(glyphs)), std::data(clusters), static_cast<int>(std::size(clusters)), cluster_flags); }
     void text_path(const char* utf8) { cairo_text_path(m_context, utf8); }
     void glyph_path(const glyph* glyphs, int num_glyphs) { cairo_glyph_path(m_context, glyphs, num_glyphs); }
     template<typename T>
     void glyph_path(const T& glyphs) { cairo_glyph_path(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs))); }
 
-    text_extents get_text_extents(const char* utf8) { text_extents extents; cairo_text_extents(m_context, utf8, &extents); return extents; }
-    text_extents get_glyph_extents(const glyph* glyphs, int num_glyphs) { text_extents extents; cairo_glyph_extents(m_context, glyphs, num_glyphs, &extents); return extents; }
+    TextExtents text_extents(const char* utf8) { TextExtents extents; cairo_text_extents(m_context, utf8, &extents); return extents; }
+    TextExtents glyph_extents(const glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_glyph_extents(m_context, glyphs, num_glyphs, &extents); return extents; }
     template<typename T>
-    text_extents get_glyph_extents(const T& glyphs) { text_extents extents; cairo_glyph_extents(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
-    font_extents get_font_extents() { font_extents extents; cairo_font_extents(m_context, &extents); return extents; }
+    TextExtents glyph_extents(const T& glyphs) { TextExtents extents; cairo_glyph_extents(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
+    FontExtents font_extents() { FontExtents extents; cairo_font_extents(m_context, &extents); return extents; }
 
   private:
-    details::handle<cairo_t, cairo_reference, cairo_destroy> m_context;
+    details::Handle<cairo_t, cairo_reference, cairo_destroy> m_context;
   };
 
-  class subcontext {
+  class Subcontext {
   public:
-    subcontext(context& ctx)
+    Subcontext(Context& ctx)
     : m_context(&ctx)
     {
       m_context->save();
     }
 
-    subcontext(const subcontext&) = delete;
-    subcontext(subcontext&&) noexcept = delete;
+    Subcontext(const Subcontext&) = delete;
+    Subcontext(Subcontext&&) noexcept = delete;
 
-    ~subcontext()
+    ~Subcontext()
     {
       m_context->restore();
     }
 
-    subcontext& operator=(const subcontext&) = delete;
-    subcontext& operator=(subcontext&&) noexcept = delete;
+    Subcontext& operator=(const Subcontext&) = delete;
+    Subcontext& operator=(Subcontext&&) noexcept = delete;
 
   private:
-    context* m_context = nullptr;
+    Context* m_context = nullptr;
   };
 
   /*
    * patterns
    */
 
-  class solid_pattern : public pattern {
+  class SolidPattern : public Pattern {
   public:
-    static solid_pattern create_rgb(double red, double green, double blue) { return cairo_pattern_create_rgb(red, green, blue); }
-    static solid_pattern create_rgba(double red, double green, double blue, double alpha) { return cairo_pattern_create_rgba(red, green, blue, alpha); }
-    static solid_pattern create_color(color col) { return cairo_pattern_create_rgba(col.r, col.g, col.b, col.a); }
+    static SolidPattern create_rgb(double red, double green, double blue) { return cairo_pattern_create_rgb(red, green, blue); }
+    static SolidPattern create_rgba(double red, double green, double blue, double alpha) { return cairo_pattern_create_rgba(red, green, blue, alpha); }
+    static SolidPattern create_color(Color col) { return cairo_pattern_create_rgba(col.r, col.g, col.b, col.a); }
 
-    color get_color() { color col; cairo_pattern_get_rgba(m_pattern, &col.r, &col.g, &col.b, &col.a); return col; }
+    Color color() { Color col; cairo_pattern_get_rgba(raw(), &col.r, &col.g, &col.b, &col.a); return col; }
 
 
   private:
-    solid_pattern(cairo_pattern_t* pat)
-    : pattern(pat)
+    SolidPattern(cairo_pattern_t* pat)
+    : Pattern(pat)
     {
     }
   };
 
-  class surface_pattern : public pattern {
+  class SurfacePattern : public Pattern {
   public:
-    static surface_pattern create(surface& surf) { return cairo_pattern_create_for_surface(surf.m_surface); }
+    static SurfacePattern create(Surface& surf) { return cairo_pattern_create_for_surface(surf.m_surface); }
 
-    surface get_surface() { cairo_surface_t* surface; cairo_pattern_get_surface(m_pattern, &surface); return { surface, details::increase_reference }; }
+    Surface surface() { cairo_surface_t* surface = nullptr; cairo_pattern_get_surface(raw(), &surface); return { surface, details::IncreaseReference }; }
 
   private:
-    surface_pattern(cairo_pattern_t* pat)
-    : pattern(pat)
+    SurfacePattern(cairo_pattern_t* pat)
+    : Pattern(pat)
     {
     }
   };
 
-  class gradient_pattern : public pattern {
+  class GradientPattern : public Pattern {
   public:
 
-    void add_color_stop_rgb(double offset, double red, double green, double blue) { cairo_pattern_add_color_stop_rgb(m_pattern, offset, red, green, blue); }
-    void add_color_stop_rgba(double offset, double red, double green, double blue, double alpha) { cairo_pattern_add_color_stop_rgba(m_pattern, offset, red, green, blue, alpha); }
-    void add_color_stop_color(double offset, color col) { cairo_pattern_add_color_stop_rgba(m_pattern, offset, col.r, col.g, col.b, col.a); }
+    void add_color_stop_rgb(double offset, double red, double green, double blue) { cairo_pattern_add_color_stop_rgb(raw(), offset, red, green, blue); }
+    void add_color_stop_rgba(double offset, double red, double green, double blue, double alpha) { cairo_pattern_add_color_stop_rgba(raw(), offset, red, green, blue, alpha); }
+    void add_color_stop_color(double offset, Color col) { cairo_pattern_add_color_stop_rgba(raw(), offset, col.r, col.g, col.b, col.a); }
 
-    std::pair<double, color> get_color_stop(int index)
+    std::pair<double, Color> color_stop(int index)
     {
-      double offset;
-      color col;
-      [[maybe_unused]] auto result = cairo_pattern_get_color_stop_rgba(m_pattern, index, &offset, &col.r, &col.g, &col.b, &col.a);
+      double offset = 0.0;
+      Color col;
+      [[maybe_unused]] auto result = cairo_pattern_get_color_stop_rgba(raw(), index, &offset, &col.r, &col.g, &col.b, &col.a);
       assert(result == CAIRO_STATUS_SUCCESS);
       return { offset, col };
     }
 
-    int get_color_stop_count()
+    int color_stop_count()
     {
-      int count;
-      [[maybe_unused]] auto result = cairo_pattern_get_color_stop_count(m_pattern, &count);
+      int count = 0;
+      [[maybe_unused]] auto result = cairo_pattern_get_color_stop_count(raw(), &count);
       assert(result == CAIRO_STATUS_SUCCESS);
       return count;
     }
 
   protected:
-    gradient_pattern(cairo_pattern_t* pat)
-    : pattern(pat)
+    GradientPattern(cairo_pattern_t* pat)
+    : Pattern(pat)
     {
     }
   };
 
-  class linear_gradient_pattern : public gradient_pattern {
+  class LinearGradientPattern : public GradientPattern {
   public:
-    static linear_gradient_pattern create(double x0, double y0, double x1, double y1) { return cairo_pattern_create_linear(x0, y0, x1, y1); }
-    static linear_gradient_pattern create(vec2f p0, vec2f p1) { return cairo_pattern_create_linear(p0.x, p0.y, p1.x, p1.y); }
+    static LinearGradientPattern create(double x0, double y0, double x1, double y1) { return cairo_pattern_create_linear(x0, y0, x1, y1); }
+    static LinearGradientPattern create(Vec2F p0, Vec2F p1) { return cairo_pattern_create_linear(p0.x, p0.y, p1.x, p1.y); }
 
-    std::pair<vec2f, vec2f> get_linear_points()
+    std::pair<Vec2F, Vec2F> linear_points()
     {
-      vec2f p0, p1;
-      [[maybe_unused]] auto result = cairo_pattern_get_linear_points(m_pattern, &p0.x, &p0.y, &p1.x, &p1.y);
+      Vec2F p0;
+      Vec2F p1;
+      [[maybe_unused]] auto result = cairo_pattern_get_linear_points(raw(), &p0.x, &p0.y, &p1.x, &p1.y);
       assert(result == CAIRO_STATUS_SUCCESS);
       return { p0, p1 };
     }
 
   private:
-    linear_gradient_pattern(cairo_pattern_t* pat)
-    : gradient_pattern(pat)
+    LinearGradientPattern(cairo_pattern_t* pat)
+    : GradientPattern(pat)
     {
     }
   };
 
-  class radial_gradient_pattern : public gradient_pattern {
+  class RadialGradientPattern : public GradientPattern {
   public:
-    static radial_gradient_pattern create(double cx0, double cy0, double radius0, double cx1, double cy1, double radius1) { return cairo_pattern_create_radial(cx0, cy0, radius0, cx1, cy1, radius1); }
-    static radial_gradient_pattern create(vec2f center0, double radius0, vec2f center1, double radius1) { return cairo_pattern_create_radial(center0.x, center0.y, radius0, center1.x, center1.y, radius1); }
+    static RadialGradientPattern create(double cx0, double cy0, double radius0, double cx1, double cy1, double radius1) { return cairo_pattern_create_radial(cx0, cy0, radius0, cx1, cy1, radius1); }
+    static RadialGradientPattern create(Vec2F center0, double radius0, Vec2F center1, double radius1) { return cairo_pattern_create_radial(center0.x, center0.y, radius0, center1.x, center1.y, radius1); }
 
-    std::tuple<vec2f, double, vec2f, double> get_radial_circles()
+    std::tuple<Vec2F, double, Vec2F, double> radial_circles()
     {
-      vec2f center0;
-      double radius0;
-      vec2f center1;
-      double radius1;
-      [[maybe_unused]] auto result = cairo_pattern_get_radial_circles(m_pattern, &center0.x, &center0.y, &radius0, &center1.x, &center1.y, &radius1);
+      Vec2F center0;
+      double radius0 = 0.0;
+      Vec2F center1;
+      double radius1 = 0.0;
+      [[maybe_unused]] auto result = cairo_pattern_get_radial_circles(raw(), &center0.x, &center0.y, &radius0, &center1.x, &center1.y, &radius1);
       assert(result == CAIRO_STATUS_SUCCESS);
       return { center0, radius0, center1, radius1 };
     }
 
   private:
-    radial_gradient_pattern(cairo_pattern_t* pat)
-    : gradient_pattern(pat)
+    RadialGradientPattern(cairo_pattern_t* pat)
+    : GradientPattern(pat)
     {
     }
   };
 
-  class mesh_pattern : public pattern {
+  class MeshPattern : public Pattern {
   public:
-    static mesh_pattern create() { return cairo_pattern_create_mesh(); }
+    static MeshPattern create() { return cairo_pattern_create_mesh(); }
 
-    void begin_patch() { cairo_mesh_pattern_begin_patch(m_pattern); }
-    void end_patch() { cairo_mesh_pattern_end_patch(m_pattern); }
-    void move_to(double x, double y) { cairo_mesh_pattern_move_to(m_pattern, x, y); }
-    void move_to(vec2f point) { cairo_mesh_pattern_move_to(m_pattern, point.x, point.y); }
-    void line_to(double x, double y) { cairo_mesh_pattern_line_to(m_pattern, x, y); }
-    void line_to(vec2f point) { cairo_mesh_pattern_line_to(m_pattern, point.x, point.y); }
-    void curve_to(double x1, double y1, double x2, double y2, double x3, double y3) { cairo_mesh_pattern_curve_to(m_pattern, x1, y1, x2, y2, x3, y3); }
-    void curve_to(vec2f p1, vec2f p2, vec2f p3) { cairo_mesh_pattern_curve_to(m_pattern, p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); }
+    void begin_patch() { cairo_mesh_pattern_begin_patch(raw()); }
+    void end_patch() { cairo_mesh_pattern_end_patch(raw()); }
+    void move_to(double x, double y) { cairo_mesh_pattern_move_to(raw(), x, y); }
+    void move_to(Vec2F point) { cairo_mesh_pattern_move_to(raw(), point.x, point.y); }
+    void line_to(double x, double y) { cairo_mesh_pattern_line_to(raw(), x, y); }
+    void line_to(Vec2F point) { cairo_mesh_pattern_line_to(raw(), point.x, point.y); }
+    void curve_to(double x1, double y1, double x2, double y2, double x3, double y3) { cairo_mesh_pattern_curve_to(raw(), x1, y1, x2, y2, x3, y3); }
+    void curve_to(Vec2F p1, Vec2F p2, Vec2F p3) { cairo_mesh_pattern_curve_to(raw(), p1.x, p1.y, p2.x, p2.y, p3.x, p3.y); }
 
-    void set_control_point(unsigned point_num, double x, double y) { cairo_mesh_pattern_set_control_point(m_pattern, point_num, x, y); }
-    void set_control_point(unsigned point_num, vec2f point) { cairo_mesh_pattern_set_control_point(m_pattern, point_num, point.x, point.y); }
-    void set_corner_color_rgb(unsigned corner_num, double red, double green, double blue) { cairo_mesh_pattern_set_corner_color_rgb(m_pattern, corner_num, red, green, blue); }
-    void set_corner_color_rgba(unsigned corner_num, double red, double green, double blue, double alpha) { cairo_mesh_pattern_set_corner_color_rgba(m_pattern, corner_num, red, green, blue, alpha); }
-    void set_corner_color(unsigned corner_num, color col) { cairo_mesh_pattern_set_corner_color_rgba(m_pattern, corner_num, col.r, col.g, col.b, col.a); }
+    void set_control_point(unsigned point_num, double x, double y) { cairo_mesh_pattern_set_control_point(raw(), point_num, x, y); }
+    void set_control_point(unsigned point_num, Vec2F point) { cairo_mesh_pattern_set_control_point(raw(), point_num, point.x, point.y); }
+    void set_corner_color_rgb(unsigned corner_num, double red, double green, double blue) { cairo_mesh_pattern_set_corner_color_rgb(raw(), corner_num, red, green, blue); }
+    void set_corner_color_rgba(unsigned corner_num, double red, double green, double blue, double alpha) { cairo_mesh_pattern_set_corner_color_rgba(raw(), corner_num, red, green, blue, alpha); }
+    void set_corner_color(unsigned corner_num, Color col) { cairo_mesh_pattern_set_corner_color_rgba(raw(), corner_num, col.r, col.g, col.b, col.a); }
 
-    unsigned get_patch_count()
+    unsigned patch_count()
     {
-      unsigned count;
-      [[maybe_unused]] auto result = cairo_mesh_pattern_get_patch_count(m_pattern, &count);
+      unsigned count = 0;
+      [[maybe_unused]] auto result = cairo_mesh_pattern_get_patch_count(raw(), &count);
       assert(result == CAIRO_STATUS_SUCCESS);
       return count;
     }
 
-    path get_path(unsigned patch_num) { return cairo_mesh_pattern_get_path(m_pattern, patch_num); }
+    Path path(unsigned patch_num) { return cairo_mesh_pattern_get_path(raw(), patch_num); }
 
-    color get_corner_color(unsigned patch_num, unsigned corner_num)
+    Color corner_color(unsigned patch_num, unsigned corner_num)
     {
-      color col;
-      [[maybe_unused]] auto result = cairo_mesh_pattern_get_corner_color_rgba(m_pattern, patch_num, corner_num, &col.r, &col.g, &col.b, &col.a);
+      Color col;
+      [[maybe_unused]] auto result = cairo_mesh_pattern_get_corner_color_rgba(raw(), patch_num, corner_num, &col.r, &col.g, &col.b, &col.a);
       assert(result == CAIRO_STATUS_SUCCESS);
       return col;
     }
 
-    vec2f get_control_point(unsigned patch_num, unsigned point_num)
+    Vec2F control_point(unsigned patch_num, unsigned point_num)
     {
-      vec2f point;
-      [[maybe_unused]] auto result = cairo_mesh_pattern_get_control_point(m_pattern, patch_num, point_num, &point.x, &point.y);
+      Vec2F point;
+      [[maybe_unused]] auto result = cairo_mesh_pattern_get_control_point(raw(), patch_num, point_num, &point.x, &point.y);
       assert(result == CAIRO_STATUS_SUCCESS);
       return point;
     }
 
   private:
-    mesh_pattern(cairo_pattern_t* pat)
-    : pattern(pat)
+    MeshPattern(cairo_pattern_t* pat)
+    : Pattern(pat)
     {
     }
   };
@@ -1243,110 +1303,111 @@ namespace cairo {
    * surfaces
    */
 
-  inline int format_stride_for_width(format fmt, int width) { return cairo_format_stride_for_width(static_cast<cairo_format_t>(fmt), width); }
+  inline int format_stride_for_width(Format fmt, int width) { return cairo_format_stride_for_width(static_cast<cairo_format_t>(fmt), width); }
 
-  class image_surface : public surface {
+  class ImageSurface : public Surface {
   public:
-    static image_surface create(format fmt, int width, int height) { return cairo_image_surface_create(static_cast<cairo_format_t>(fmt), width, height); }
-    static image_surface create(format fmt, vec2i size) { return cairo_image_surface_create(static_cast<cairo_format_t>(fmt), size.x, size.y); }
-    static image_surface create_for_data(unsigned char* data, format fmt, int width, int height, int stride) { return cairo_image_surface_create_for_data(data, static_cast<cairo_format_t>(fmt), width, height, stride); }
-    static image_surface create_for_data(unsigned char* data, format fmt, vec2i size, int stride) { return cairo_image_surface_create_for_data(data, static_cast<cairo_format_t>(fmt), size.x, size.y, stride); }
+    static ImageSurface create(Format fmt, int width, int height) { return cairo_image_surface_create(static_cast<cairo_format_t>(fmt), width, height); }
+    static ImageSurface create(Format fmt, Vec2I size) { return cairo_image_surface_create(static_cast<cairo_format_t>(fmt), size.x, size.y); }
+    static ImageSurface create_for_data(unsigned char* data, Format fmt, int width, int height, int stride) { return cairo_image_surface_create_for_data(data, static_cast<cairo_format_t>(fmt), width, height, stride); }
+    static ImageSurface create_for_data(unsigned char* data, Format fmt, Vec2I size, int stride) { return cairo_image_surface_create_for_data(data, static_cast<cairo_format_t>(fmt), size.x, size.y, stride); }
 
 #if CAIRO_HAS_PNG_FUNCTIONS
-    static image_surface create_from_png(const char* filename) { return cairo_image_surface_create_from_png(filename);  }
-    static image_surface create_from_png(const std::filesystem::path& filename) { return cairo_image_surface_create_from_png(filename.string().c_str());  }
+    static ImageSurface create_from_png(const char* filename) { return cairo_image_surface_create_from_png(filename);  }
+    static ImageSurface create_from_png(const std::filesystem::path& filename) { return cairo_image_surface_create_from_png(filename.string().c_str());  }
 #endif
 
-    unsigned char* get_data() { return cairo_image_surface_get_data(m_surface); }
-    format get_format() { return static_cast<format>(cairo_image_surface_get_format(m_surface)); }
-    int get_width() { return cairo_image_surface_get_width(m_surface); }
-    int get_height() { return cairo_image_surface_get_height(m_surface); }
-    int get_stride() { return cairo_image_surface_get_stride(m_surface); }
+    unsigned char* data() { return cairo_image_surface_get_data(raw()); }
+    Format format() { return static_cast<Format>(cairo_image_surface_get_format(raw())); }
+    int width() { return cairo_image_surface_get_width(raw()); }
+    int height() { return cairo_image_surface_get_height(raw()); }
+    int stride() { return cairo_image_surface_get_stride(raw()); }
 
 
   private:
-    image_surface(cairo_surface_t* surf)
-    : surface(surf)
+    ImageSurface(cairo_surface_t* surf)
+    : Surface(surf)
     {
     }
   };
 
-  class recording_surface : public surface {
+  class RecordingSurface : public Surface {
   public:
-    static recording_surface create(content cnt, rectf extents) { const cairo_rectangle_t rectangle = { extents.x, extents.y, extents.w, extents.h }; return cairo_recording_surface_create(static_cast<cairo_content_t>(cnt), &rectangle); }
+    static RecordingSurface create(Content cnt, RectF extents) { const cairo_rectangle_t rectangle = { extents.x, extents.y, extents.w, extents.h }; return cairo_recording_surface_create(static_cast<cairo_content_t>(cnt), &rectangle); }
 
-    rectf get_ink_extents() { rectf extents; cairo_recording_surface_ink_extents(m_surface, &extents.x, &extents.y, &extents.w, &extents.h); return extents; }
-    std::pair<bool, rectf> get_extents() { cairo_rectangle_t extents; auto ret = cairo_recording_surface_get_extents(m_surface, &extents); return { ret != 0, { extents.x, extents.y, extents.width, extents.height }}; }
+    RectF ink_extents() { RectF extents; cairo_recording_surface_ink_extents(raw(), &extents.x, &extents.y, &extents.w, &extents.h); return extents; }
+    std::pair<bool, RectF> extents() { cairo_rectangle_t extents; auto ret = cairo_recording_surface_get_extents(raw(), &extents); return { ret != 0, { extents.x, extents.y, extents.width, extents.height }}; }
 
   private:
-    recording_surface(cairo_surface_t* surf)
-    : surface(surf)
+    RecordingSurface(cairo_surface_t* surf)
+    : Surface(surf)
     {
     }
   };
 
 #if CAIRO_HAS_PDF_SURFACE
 
-  enum class pdf_version : std::underlying_type_t<cairo_pdf_version_t> {
-    v_1_4,
-    v_1_5,
+  enum class PdfVersion : std::underlying_type_t<cairo_pdf_version_t> { // NOLINT(performance-enum-size)
+    V_1_4,
+    V_1_5,
   };
 
-  inline std::string_view to_string(pdf_version version) { return cairo_pdf_version_to_string(static_cast<cairo_pdf_version_t>(version)); }
+  inline std::string_view to_string(PdfVersion version) { return cairo_pdf_version_to_string(static_cast<cairo_pdf_version_t>(version)); }
 
-  enum class pdf_outline_flags : std::underlying_type_t<cairo_pdf_outline_flags_t> {
-    open = CAIRO_PDF_OUTLINE_FLAG_OPEN,
-    bold = CAIRO_PDF_OUTLINE_FLAG_BOLD,
-    italic = CAIRO_PDF_OUTLINE_FLAG_ITALIC,
+  enum class PdfOutlineFlags : std::underlying_type_t<cairo_pdf_outline_flags_t> { // NOLINT(performance-enum-size)
+    Open = CAIRO_PDF_OUTLINE_FLAG_OPEN,
+    Bold = CAIRO_PDF_OUTLINE_FLAG_BOLD,
+    Italic = CAIRO_PDF_OUTLINE_FLAG_ITALIC,
   };
 
-  inline constexpr int pdf_outline_root = CAIRO_PDF_OUTLINE_ROOT;
+  inline constexpr int PdfOutlineRoot = CAIRO_PDF_OUTLINE_ROOT;
 
-  enum class pdf_metadata : std::underlying_type_t<cairo_pdf_metadata_t> {
-    title = CAIRO_PDF_METADATA_TITLE,
-    author = CAIRO_PDF_METADATA_AUTHOR,
-    subject = CAIRO_PDF_METADATA_SUBJECT,
-    keywords = CAIRO_PDF_METADATA_KEYWORDS,
-    creator = CAIRO_PDF_METADATA_CREATOR,
-    date = CAIRO_PDF_METADATA_CREATE_DATE,
-    mod_date = CAIRO_PDF_METADATA_MOD_DATE,
+  enum class PdfMetadata : std::underlying_type_t<cairo_pdf_metadata_t> { // NOLINT(performance-enum-size)
+    Title = CAIRO_PDF_METADATA_TITLE,
+    Author = CAIRO_PDF_METADATA_AUTHOR,
+    Subject = CAIRO_PDF_METADATA_SUBJECT,
+    Keywords = CAIRO_PDF_METADATA_KEYWORDS,
+    Creator = CAIRO_PDF_METADATA_CREATOR,
+    Date = CAIRO_PDF_METADATA_CREATE_DATE,
+    ModDate = CAIRO_PDF_METADATA_MOD_DATE,
   };
 
-  class pdf_surface : public surface {
+  class PdfSurface : public Surface {
   public:
-    static pdf_surface create(const char* filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename, width_in_points, height_in_points); }
-    static pdf_surface create(const std::filesystem::path& filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename.string().c_str(), width_in_points, height_in_points); }
+    static PdfSurface create(const char* filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename, width_in_points, height_in_points); }
+    static PdfSurface create(const std::filesystem::path& filename, double width_in_points, double height_in_points) { return cairo_pdf_surface_create(filename.string().c_str(), width_in_points, height_in_points); }
 
-    void restrict_to_version(pdf_version version) { cairo_pdf_surface_restrict_to_version(m_surface, static_cast<cairo_pdf_version_t>(version)); }
+    void restrict_to_version(PdfVersion version) { cairo_pdf_surface_restrict_to_version(raw(), static_cast<cairo_pdf_version_t>(version)); }
 
-    void set_size(double width_in_points, double height_in_points) {cairo_pdf_surface_set_size(m_surface, width_in_points, height_in_points); }
-    void set_size(vec2f size_in_points) {cairo_pdf_surface_set_size(m_surface, size_in_points.x, size_in_points.y); }
+    void set_size(double width_in_points, double height_in_points) {cairo_pdf_surface_set_size(raw(), width_in_points, height_in_points); }
+    void set_size(Vec2F size_in_points) {cairo_pdf_surface_set_size(raw(), size_in_points.x, size_in_points.y); }
 
-    void add_outline(int parent_id, const char* utf8, const char* link_attribs, pdf_outline_flags flags) { cairo_pdf_surface_add_outline(m_surface, parent_id, utf8, link_attribs, static_cast<cairo_pdf_outline_flags_t>(flags)); }
+    void add_outline(int parent_id, const char* utf8, const char* link_attribs, PdfOutlineFlags flags) { cairo_pdf_surface_add_outline(raw(), parent_id, utf8, link_attribs, static_cast<cairo_pdf_outline_flags_t>(flags)); }
 
-    void set_metadata(pdf_metadata metadata, const char* utf8) { cairo_pdf_surface_set_metadata(m_surface, static_cast<cairo_pdf_metadata_t>(metadata), utf8); }
-    void set_page_label(const char* utf8) { cairo_pdf_surface_set_page_label(m_surface, utf8); }
-    void set_thumbnail_size(int width, int height) { cairo_pdf_surface_set_thumbnail_size(m_surface, width, height); }
-    void set_thumbnail_size(vec2i size) { cairo_pdf_surface_set_thumbnail_size(m_surface, size.x, size.y); }
+    void set_metadata(PdfMetadata metadata, const char* utf8) { cairo_pdf_surface_set_metadata(raw(), static_cast<cairo_pdf_metadata_t>(metadata), utf8); }
+    void set_page_label(const char* utf8) { cairo_pdf_surface_set_page_label(raw(), utf8); }
+    void set_thumbnail_size(int width, int height) { cairo_pdf_surface_set_thumbnail_size(raw(), width, height); }
+    void set_thumbnail_size(Vec2I size) { cairo_pdf_surface_set_thumbnail_size(raw(), size.x, size.y); }
 
-    static std::vector<pdf_version> get_versions()
+    static std::vector<PdfVersion> versions()
     {
-      const cairo_pdf_version_t *raw_versions;
-      int raw_num_versions;
+      const cairo_pdf_version_t* raw_versions = nullptr;
+      int raw_num_versions = 0;
       cairo_pdf_get_versions(&raw_versions, &raw_num_versions);
 
-      std::vector<pdf_version> versions;
+      std::vector<PdfVersion> versions;
+      versions.reserve(raw_num_versions);
 
       for (int i = 0; i < raw_num_versions; ++i) {
-        versions.push_back(static_cast<pdf_version>(raw_versions[i]));
+        versions.push_back(static_cast<PdfVersion>(raw_versions[i]));
       }
 
       return versions;
     }
 
   private:
-    pdf_surface(cairo_surface_t* surf)
-    : surface(surf)
+    PdfSurface(cairo_surface_t* surf)
+    : Surface(surf)
     {
     }
   };
