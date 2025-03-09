@@ -1,7 +1,7 @@
 set_project("cairopp")
 set_version("0.1.0")
 
-add_requires("cairo")
+add_requires("cairo", { system = false })
 
 add_rules("mode.debug", "mode.releasedbg", "mode.release")
 add_rules("plugin.compile_commands.autoupdate", {outputdir = "$(buildir)"})

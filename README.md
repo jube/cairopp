@@ -53,7 +53,7 @@ Known missing member functions:
 
 ### Versioning
 
-For now, the binding does not handle different versions of cairo. It may change in the future.
+The binding handles the different versions from 1.16. If you need support for version handling before 1.16, patches are welcome.
 
 ## License
 

@@ -434,6 +434,17 @@ namespace cairo {
     On = CAIRO_HINT_METRICS_ON,
   };
 
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+  enum class ColorMode : std::underlying_type_t<cairo_color_mode_t> { // NOLINT(performance-enum-size)
+    Default,
+    NoColor,
+    Color,
+  };
+
+  inline constexpr unsigned int ColorPaletteDefault = CAIRO_COLOR_PALETTE_DEFAULT;
+#endif
+
+
   class FontOptions {
   public:
     FontOptions()
@@ -459,6 +470,24 @@ namespace cairo {
 
     void set_variations(const char* variations) { cairo_font_options_set_variations(m_options, variations); }
     const char* variations() { return cairo_font_options_get_variations(m_options); }
+
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    void set_color_mode(ColorMode color_mode) { cairo_font_options_set_color_mode(m_options, static_cast<cairo_color_mode_t>(color_mode)); }
+    ColorMode color_mode() { return static_cast<ColorMode>(cairo_font_options_get_color_mode(m_options)); }
+
+    void set_color_palette(unsigned int palette_index) { cairo_font_options_set_color_palette(m_options, palette_index); }
+    unsigned int color_palette() { return cairo_font_options_get_color_palette(m_options); }
+
+    void set_custom_palette_color(unsigned int palette_index, double red, double green, double blue, double alpha) { cairo_font_options_set_custom_palette_color(m_options, palette_index, red, green, blue, alpha); }
+    void set_custom_palette_color(unsigned int palette_index, Color col) { cairo_font_options_set_custom_palette_color(m_options, palette_index, col.r, col.g, col.b, col.a); }
+
+    Color custom_palette_color(unsigned int palette_index) {
+      Color col = {};
+      [[maybe_unused]] auto result = cairo_font_options_get_custom_palette_color(m_options, palette_index, &col.r, &col.g, &col.b, &col.a);
+      assert(result == CAIRO_STATUS_SUCCESS);
+      return col;
+    }
+#endif
 
     bool operator==(const FontOptions& other) const { return cairo_font_options_equal(m_options, other.m_options) != 0; }
 
@@ -703,6 +732,16 @@ namespace cairo {
     Gaussian = CAIRO_FILTER_GAUSSIAN,
   };
 
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+  enum class Dither : std::underlying_type_t<cairo_dither_t> { // NOLINT(performance-enum-size)
+    None = CAIRO_DITHER_NONE,
+    Default = CAIRO_DITHER_DEFAULT,
+    Fast = CAIRO_DITHER_FAST,
+    Good = CAIRO_DITHER_GOOD,
+    Best = CAIRO_DITHER_BEST,
+  };
+#endif
+
   class Pattern {
   public:
     Status status() { return static_cast<Status>(cairo_pattern_status(m_pattern)); }
@@ -716,6 +755,11 @@ namespace cairo {
 
     void set_filter(Filter f) { cairo_pattern_set_filter(m_pattern, static_cast<cairo_filter_t>(f)); }
     Filter filter() { return static_cast<Filter>(cairo_pattern_get_filter(m_pattern)); }
+
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    void set_dither(Dither d) { cairo_pattern_set_dither(m_pattern, static_cast<cairo_dither_t>(d)); }
+    Dither dither() { return static_cast<Dither>(cairo_pattern_get_dither(m_pattern)); }
+#endif
 
   protected:
     Pattern(cairo_pattern_t* pat)
@@ -1012,6 +1056,10 @@ namespace cairo {
     void copy_page() { cairo_copy_page(m_context); }
     void show_page() { cairo_show_page(m_context); }
 
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    void set_hairline(bool hairline) { cairo_set_hairline(m_context, static_cast<cairo_bool_t>(hairline)); }
+    bool hairline() { return cairo_get_hairline(m_context) != 0; }
+#endif
     // insideness testing
 
     bool in_stroke(double x, double y) { return cairo_in_stroke(m_context, x, y) != 0; }
@@ -1350,6 +1398,10 @@ namespace cairo {
   enum class PdfVersion : std::underlying_type_t<cairo_pdf_version_t> { // NOLINT(performance-enum-size)
     V_1_4 = CAIRO_PDF_VERSION_1_4,
     V_1_5 = CAIRO_PDF_VERSION_1_5,
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    V_1_6 = CAIRO_PDF_VERSION_1_6,
+    V_1_7 = CAIRO_PDF_VERSION_1_7,
+#endif
   };
 
   inline std::string_view to_string(PdfVersion version) { return cairo_pdf_version_to_string(static_cast<cairo_pdf_version_t>(version)); }
@@ -1385,6 +1437,11 @@ namespace cairo {
     void add_outline(int parent_id, const char* utf8, const char* link_attribs, PdfOutlineFlags flags) { cairo_pdf_surface_add_outline(raw(), parent_id, utf8, link_attribs, static_cast<cairo_pdf_outline_flags_t>(flags)); }
 
     void set_metadata(PdfMetadata metadata, const char* utf8) { cairo_pdf_surface_set_metadata(raw(), static_cast<cairo_pdf_metadata_t>(metadata), utf8); }
+
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    void set_custom_metadata(const char* name, const char* value) { cairo_pdf_surface_set_custom_metadata(raw(), name, value); }
+#endif
+
     void set_page_label(const char* utf8) { cairo_pdf_surface_set_page_label(raw(), utf8); }
     void set_thumbnail_size(int width, int height) { cairo_pdf_surface_set_thumbnail_size(raw(), width, height); }
     void set_thumbnail_size(Vec2I size) { cairo_pdf_surface_set_thumbnail_size(raw(), size.x, size.y); }
