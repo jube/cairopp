@@ -388,8 +388,8 @@ namespace cairo {
    * font
    */
 
-  using glyph = cairo_glyph_t;
-  using text_cluster = cairo_text_cluster_t;
+  using Glyph = cairo_glyph_t;
+  using TextCluster = cairo_text_cluster_t;
 
   enum class TextClusterFlags : std::underlying_type_t<cairo_text_cluster_flags_t> { // NOLINT(performance-enum-size)
     None = 0,
@@ -512,8 +512,8 @@ namespace cairo {
 
   struct TextGlyphs {
     Status result = Status::Success;
-    std::vector<glyph> glyphs;
-    std::vector<text_cluster> clusters;
+    std::vector<Glyph> glyphs;
+    std::vector<TextCluster> clusters;
     TextClusterFlags flags = TextClusterFlags::None;
   };
 
@@ -547,15 +547,15 @@ namespace cairo {
 
     FontExtents font_extents() { FontExtents extents; cairo_scaled_font_extents(m_font, &extents); return extents; }
     TextExtents text_extents(const char* utf8) { TextExtents extents; cairo_scaled_font_text_extents(m_font, utf8, &extents); return extents; }
-    TextExtents glyph_extents(const glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_scaled_font_glyph_extents(m_font, glyphs, num_glyphs, &extents); return extents; }
+    TextExtents glyph_extents(const Glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_scaled_font_glyph_extents(m_font, glyphs, num_glyphs, &extents); return extents; }
     template<typename T>
     TextExtents glyph_extents(const T& glyphs) { TextExtents extents; cairo_scaled_font_glyph_extents(m_font, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
 
     TextGlyphs text_to_glyphs(double x, double y, const char* utf8, int utf8_len)
     {
-      glyph* glyphs = nullptr;
+      Glyph* glyphs = nullptr;
       int num_glyphs = 0;
-      text_cluster* clusters = nullptr;
+      TextCluster* clusters = nullptr;
       int num_clusters = 0;
       auto flags = cairo_text_cluster_flags_t(0);
 
@@ -1095,19 +1095,19 @@ namespace cairo {
     ScaledFont scaled_font() { return { cairo_get_scaled_font(m_context), details::IncreaseReference }; }
 
     void show_text(const char* utf8) { cairo_show_text(m_context, utf8); }
-    void show_glyphs(const glyph* glyphs, int num_glyphs) { cairo_show_glyphs(m_context, glyphs, num_glyphs); }
+    void show_glyphs(const Glyph* glyphs, int num_glyphs) { cairo_show_glyphs(m_context, glyphs, num_glyphs); }
     template<typename T>
     void show_glyphs(const T& glyphs) { cairo_show_glyphs(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs))); }
-    void show_text_glyphs(const char* utf8, int utf8_len, const glyph* glyphs, int num_glyphs, const text_cluster* clusters, int num_clusters, TextClusterFlags cluster_flags = TextClusterFlags::None) { cairo_show_text_glyphs(m_context, utf8, utf8_len, glyphs, num_glyphs, clusters, num_clusters, static_cast<cairo_text_cluster_flags_t>(cluster_flags)); }
+    void show_text_glyphs(const char* utf8, int utf8_len, const Glyph* glyphs, int num_glyphs, const TextCluster* clusters, int num_clusters, TextClusterFlags cluster_flags = TextClusterFlags::None) { cairo_show_text_glyphs(m_context, utf8, utf8_len, glyphs, num_glyphs, clusters, num_clusters, static_cast<cairo_text_cluster_flags_t>(cluster_flags)); }
     template<typename T, typename U>
     void show_text_glyphs(std::string_view utf8, const T& glyphs, const U& clusters, TextClusterFlags cluster_flags = TextClusterFlags::None) { cairo_show_text_glyphs(m_context, std::data(utf8), static_cast<int>(std::size(utf8)), std::data(glyphs), static_cast<int>(std::size(glyphs)), std::data(clusters), static_cast<int>(std::size(clusters)), cluster_flags); }
     void text_path(const char* utf8) { cairo_text_path(m_context, utf8); }
-    void glyph_path(const glyph* glyphs, int num_glyphs) { cairo_glyph_path(m_context, glyphs, num_glyphs); }
+    void glyph_path(const Glyph* glyphs, int num_glyphs) { cairo_glyph_path(m_context, glyphs, num_glyphs); }
     template<typename T>
     void glyph_path(const T& glyphs) { cairo_glyph_path(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs))); }
 
     TextExtents text_extents(const char* utf8) { TextExtents extents; cairo_text_extents(m_context, utf8, &extents); return extents; }
-    TextExtents glyph_extents(const glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_glyph_extents(m_context, glyphs, num_glyphs, &extents); return extents; }
+    TextExtents glyph_extents(const Glyph* glyphs, int num_glyphs) { TextExtents extents; cairo_glyph_extents(m_context, glyphs, num_glyphs, &extents); return extents; }
     template<typename T>
     TextExtents glyph_extents(const T& glyphs) { TextExtents extents; cairo_glyph_extents(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
     FontExtents font_extents() { FontExtents extents; cairo_font_extents(m_context, &extents); return extents; }
@@ -1336,7 +1336,7 @@ namespace cairo {
     static RecordingSurface create(Content cnt, RectF extents) { const cairo_rectangle_t rectangle = { extents.x, extents.y, extents.w, extents.h }; return cairo_recording_surface_create(static_cast<cairo_content_t>(cnt), &rectangle); }
 
     RectF ink_extents() { RectF extents; cairo_recording_surface_ink_extents(raw(), &extents.x, &extents.y, &extents.w, &extents.h); return extents; }
-    std::pair<bool, RectF> extents() { cairo_rectangle_t extents; auto ret = cairo_recording_surface_get_extents(raw(), &extents); return { ret != 0, { extents.x, extents.y, extents.width, extents.height }}; }
+    std::pair<bool, RectF> extents() { cairo_rectangle_t extents = {}; auto ret = cairo_recording_surface_get_extents(raw(), &extents); return { ret != 0, { extents.x, extents.y, extents.width, extents.height }}; }
 
   private:
     RecordingSurface(cairo_surface_t* surf)
@@ -1348,8 +1348,8 @@ namespace cairo {
 #if CAIRO_HAS_PDF_SURFACE
 
   enum class PdfVersion : std::underlying_type_t<cairo_pdf_version_t> { // NOLINT(performance-enum-size)
-    V_1_4,
-    V_1_5,
+    V_1_4 = CAIRO_PDF_VERSION_1_4,
+    V_1_5 = CAIRO_PDF_VERSION_1_5,
   };
 
   inline std::string_view to_string(PdfVersion version) { return cairo_pdf_version_to_string(static_cast<cairo_pdf_version_t>(version)); }
