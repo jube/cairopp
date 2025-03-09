@@ -1182,6 +1182,15 @@ namespace cairo {
     TextExtents glyph_extents(const T& glyphs) { TextExtents extents; cairo_glyph_extents(m_context, std::data(glyphs), static_cast<int>(std::size(glyphs)), &extents); return extents; }
     FontExtents font_extents() { FontExtents extents; cairo_font_extents(m_context, &extents); return extents; }
 
+
+    template<typename Func>
+    void sub(Func&& func)
+    {
+      save();
+      std::forward<Func>(func)(*this);
+      restore();
+    }
+
   private:
     details::Handle<cairo_t, cairo_reference, cairo_destroy> m_context;
   };

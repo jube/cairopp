@@ -498,11 +498,10 @@ int main()
     cairo::Context context(surface);
     context.scale(2.0, 2.0);
 
-    {
-      cairo::Subcontext sub(context);
+    context.sub([](cairo::Context& context) {
       context.set_source_rgb(0.95, 0.95, 0.95);
       context.paint();
-    }
+    });
 
     sample.func(context);
     surface.write_to_png(filename);
