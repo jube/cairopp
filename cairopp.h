@@ -221,6 +221,17 @@ namespace cairo {
 
   // binding
 
+  inline constexpr int Version = CAIRO_VERSION;
+  inline constexpr int VersionMajor = CAIRO_VERSION_MAJOR;
+  inline constexpr int VersionMinor = CAIRO_VERSION_MINOR;
+  inline constexpr int VersionMicro = CAIRO_VERSION_MICRO;
+  inline constexpr const char* VersionString = CAIRO_VERSION_STRING;
+
+  constexpr int version_encode(int major, int minor, int micro) { return CAIRO_VERSION_ENCODE(major, minor, micro); }
+
+  inline int version() { return cairo_version(); }
+  inline const char* version_string() { return cairo_version_string(); }
+
   enum class Status : std::underlying_type_t<cairo_status_t> { // NOLINT(performance-enum-size)
     Success = CAIRO_STATUS_SUCCESS,
     NoMemory = CAIRO_STATUS_NO_MEMORY,
@@ -265,6 +276,10 @@ namespace cairo {
     FreetypeError = CAIRO_STATUS_FREETYPE_ERROR,
     Win32GdiError = CAIRO_STATUS_WIN32_GDI_ERROR,
     TagError = CAIRO_STATUS_TAG_ERROR,
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    DWriteError = CAIRO_STATUS_DWRITE_ERROR,
+    SvgFontError = CAIRO_STATUS_SVG_FONT_ERROR,
+#endif
   };
 
   inline std::string_view to_string(Status s) { return cairo_status_to_string(static_cast<cairo_status_t>(s)); }
@@ -283,6 +298,10 @@ namespace cairo {
     A1 = CAIRO_FORMAT_A1,
     Rgb16_565 = CAIRO_FORMAT_RGB16_565,
     Rgb30 = CAIRO_FORMAT_RGB30,
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    Rgb96F = CAIRO_FORMAT_RGB96F,
+    Rgb128F = CAIRO_FORMAT_RGBA128F,
+#endif
   };
 
   enum class Operator : std::underlying_type_t<cairo_operator_t> { // NOLINT(performance-enum-size)
@@ -503,7 +522,10 @@ namespace cairo {
     Ft = CAIRO_FONT_TYPE_FT,
     Win32 = CAIRO_FONT_TYPE_WIN32,
     Quartz = CAIRO_FONT_TYPE_QUARTZ,
-    User = CAIRO_FONT_TYPE_USER
+    User = CAIRO_FONT_TYPE_USER,
+#if CAIRO_VERSION >= CAIRO_VERSION_ENCODE(1, 18, 0)
+    DWrite = CAIRO_FONT_TYPE_DWRITE,
+#endif
   };
 
   class ToyFontFace;
